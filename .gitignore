@@ -1,5 +1,13 @@
-﻿venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Logs & runtime artifacts
+logs/*.log
+*.csv
+
+# Environment
 .env
-*.db
