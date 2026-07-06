@@ -1,0 +1,18 @@
+sequenceDiagram
+    autonumber
+    participant M2_Repo as Member 2: Repository Layer
+    participant M1_API as Member 1: FastAPI Core Engine
+    participant M4_UI as Member 4: UI Dashboard View
+    participant M3_AI as Member 3: AI Feature Pipeline
+
+    Note over M2_Repo, M1_API: Interlock 1: Database Session & Type Contracts
+    M1_API->>M2_Repo: Request Machine Status DTO (Session Token)
+    M2_Repo-->>M1_API: Return Validated BaseDTO Object Matrix
+
+    Note over M1_API, M4_UI: Interlock 2: JSON Rendering & Refresh Limits
+    M4_UI->>M1_API: Poll Machine Details (1000ms Loop Cadence)
+    M1_API-->>M4_UI: Return Clean Status JSON (Max Payload < 2KB)
+
+    Note over M2_Repo, M3_AI: Interlock 3: Data Hand-off Export Pipeline
+    M2_Repo->>M3_AI: Generate Downstream Historical CSV Matrices
+    M3_AI->>M3_AI: Load Labeled Datasets Directly into AI Training Models
