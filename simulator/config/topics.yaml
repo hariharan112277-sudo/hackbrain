@@ -1,0 +1,10 @@
+# IOB Phase 3 - MQTT / Broker Settings
+# ISO/IEC 20922 (MQTT 5.0) connection parameters for the EMQX message bus.
+mqtt_settings:
+  broker_host: "127.0.0.1"
+  broker_port: 1883
+  keepalive_sec: 60
+  client_id: "iob_industrial_simulator_engine"
+  qos_telemetry: 0
+  qos_alarms: 2
+  root_namespace: "gmc/aus/asy"

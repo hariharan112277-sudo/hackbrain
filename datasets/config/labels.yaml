@@ -1,0 +1,3 @@
+labels:
+  rul_max_limit_days: 30.0
+  predictive_failure_window_minutes: 120

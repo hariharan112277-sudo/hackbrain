@@ -1,0 +1,6 @@
+dataset:
+  version: "v1.0.0"
+  output_base_dir: "./data_output"
+  resample_rule: "1min"
+  interpolation_method: "linear"
+  max_gap_periods: 5

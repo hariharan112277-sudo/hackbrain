@@ -1,0 +1,17 @@
+database:
+  host: "localhost"
+  port: 5432
+  user: "iob_admin"
+  password: "iob_secure_pass"
+  database_name: "iob_industrial"
+  schema: "industrial"
+  pool:
+    size: 25
+    max_overflow: 15
+    timeout: 45.0
+    recycle: 1200
+  resilience:
+    retry_limit: 6
+    retry_delay_seconds: 1.5
+  security:
+    ssl_mode: "verify-ca"

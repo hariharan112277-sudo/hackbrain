@@ -1,0 +1,6 @@
+# IOB Phase 3 - Simulation Engine runtime dependencies
+PyYAML>=6.0
+paho-mqtt>=1.6.0
+
+# Development / testing
+pytest>=7.0
