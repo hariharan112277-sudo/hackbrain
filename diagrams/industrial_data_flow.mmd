@@ -1,0 +1,16 @@
+graph LR
+    Raw[Edge Sensor Read] -->|Raw Payload Transmission| Broker((EMQX Broker Cluster))
+    Broker -->|Thread Processing Ingestion| Sub[Subscriber Loop]
+    Sub -->|Verify JSON & Constraint Compliance| Val{Validation Gate}
+
+    Val -->|Failed| DLQ[Dead Letter Table / JSON Error Log]
+    Val -->|Passed| Norm[Normalization: SI Conversions & Calibrations]
+
+    Norm -->|Asset Metadata Enrichment| Enriched[Enriched Internal Data Record]
+    Enriched -->|Deduplication Filter Check| Filter{Duplicate Check}
+
+    Filter -->|Duplicate Row Found| Dup[Dropped Frame Log]
+    Filter -->|Unique Record Sequence| Write[TimescaleDB Hypertable Commit]
+
+    Write -->|Read-Only Execution Queries| Repo[Repository Access Layers]
+    Repo -->|Output Serialized Vector Mapping| M1_FastAPI[Downstream Client REST API Layers]
