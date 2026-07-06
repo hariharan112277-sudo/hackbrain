@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    participant Edge as Edge Device / Simulator
+    participant Broker as EMQX MQTT Broker
+    participant Ingest as MQTT Subscriber Component
+    participant Engine as Validation & Normalization Engine
+    participant DB as TimescaleDB Hypertable
+    participant Serv as Integration Query Service
+
+    Edge->>Broker: Publish JSON Raw Payload (Topic: industrial/iob/machines/m-102/sensors/s-901/telemetry)
+    Broker-->>Ingest: Forward Packet (Stream Buffer Ingestion)
+    Ingest->>Engine: Forward Raw Ingestion String Payload
+    Note over Engine: Check 1: JSON Structural Schema Match<br/>Check 2: Parse Timestamp Duplicity<br/>Check 3: Scale Engineering Unit to SI Standards
+    Engine->>Engine: Inject Metadata (Factory Site Token, Enriched State Key)
+    Engine->>DB: INSERT INTO telemetry (Time-Series Write Path)
+    DB-->>Engine: Acknowledgement (Row Commit Signed)
+    Serv->>DB: Execute Query Criteria Range Segment
+    DB-->>Serv: Return Vector Result Rows
+    Serv->>Serv: Serialize Rows to Pydantic BaseDTO Array
+    Serv-->>Edge: Output Read-Ready Contract Matrix to Member 1

@@ -1,0 +1,13 @@
+{
+  "id": "182bcfb2-4d1a-4da2-9b24-9dfc120fb211",
+  "asset_id": "f65efea9-a1b1-4f11-92be-154a4f89d311",
+  "gateway_id": "c53b2160-b996-48c6-829d-ee18d7f45778",
+  "firmware_version": "v4.12.0-build99",
+  "operating_hours": 1245.8,
+  "runtime_counter": 450.2,
+  "current_mode": "AUTOMATIC",
+  "status": "ONLINE",
+  "capabilities": ["HIGH_SPEED_MILLING", "THERMAL_COMPENSATION"],
+  "health_score": 94.6,
+  "metadata_fields": {"factory_floor_zone": "A-3"}
+}

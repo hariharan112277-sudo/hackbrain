@@ -1,0 +1,13 @@
+graph TD
+    A[industrial/] --> B[iob/]
+    B --> C[site-global/]
+    C --> D[health/status (JSON Broadcast - Retained)]
+    B --> E[locations/]
+    E --> F[{factory_site_id}/]
+    F --> G[lines/]
+    G --> H[{production_line_id}/]
+    H --> I[machines/]
+    I --> J[{machine_id}/]
+    J --> K[telemetry (QoS 1 - Unretained)]
+    J --> L[alarms (QoS 2 - Retained)]
+    J --> M[commands (QoS 2 - Unretained)]

@@ -1,0 +1,75 @@
+erDiagram
+    factories ||--o{ production_lines : contains
+    production_lines ||--o{ assets : groups
+    assets ||--|| machines : materializes
+    machines ||--o{ sensors : hosts
+    machines ||--o{ machine_failures : records
+    machines ||--o{ maintenance_logs : schedules
+    machines ||--o{ alarms : triggers
+    sensors ||--o{ telemetry : captures
+
+    factories {
+        uuid id PK
+        string name
+        string location_site
+    }
+    production_lines {
+        uuid id PK
+        uuid factory_id FK
+        string name
+    }
+    assets {
+        uuid id PK
+        uuid production_line_id FK
+        string name
+        string criticality
+    }
+    machines {
+        uuid id PK "Matches asset_id"
+        uuid gateway_id
+        string status
+        float health_score
+        jsonb metadata_fields
+    }
+    sensors {
+        uuid id PK
+        uuid machine_id FK
+        string name
+        string sensor_type
+        string measurement_unit
+        float lower_threshold
+        float upper_threshold
+    }
+    telemetry {
+        timestamp timestamp PK "TimescaleDB Time Bucket Key"
+        uuid machine_id FK
+        uuid sensor_id FK
+        float measured_value
+        integer quality_code
+        string alarm_status
+    }
+    alarms {
+        uuid id PK
+        uuid machine_id FK
+        uuid sensor_id FK
+        string severity
+        string state
+        timestamp trigger_timestamp
+        timestamp clear_timestamp
+    }
+    machine_failures {
+        uuid id PK
+        timestamp timestamp
+        uuid machine_id FK
+        string failure_type
+        string category
+        float operating_hours
+    }
+    maintenance_logs {
+        uuid id PK
+        uuid machine_id FK
+        string maintenance_type
+        timestamp start_time
+        timestamp end_time
+        string status
+    }

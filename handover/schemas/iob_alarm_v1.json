@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "iob_alarm_v1.json",
+  "description": "Strict validation schema for Equipment Failure Alarm Packets (QoS 2 - Retained)",
+  "type": "object",
+  "required": [
+    "id",
+    "machine_id",
+    "severity",
+    "state",
+    "trigger_timestamp"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical UUIDv4 validation match"
+    },
+    "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical UUIDv4 validation match"
+    },
+    "sensor_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical UUIDv4 validation match"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "description": "Strict Enum limit mapping: [INFO, LOW, MEDIUM, HIGH, CRITICAL]"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["ACTIVE", "ACKNOWLEDGED", "CLEARED"],
+      "description": "Strict Enum limit mapping: [ACTIVE, ACKNOWLEDGED, CLEARED]"
+    },
+    "trigger_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC format match validation"
+    },
+    "clear_timestamp": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Nullable / ISO 8601 validation format"
+    },
+    "trigger_value": {
+      "type": "number",
+      "description": "Metric value triggering the alarm"
+    },
+    "threshold_violated": {
+      "type": "string",
+      "description": "Description of violated operational rule"
+    }
+  },
+  "additionalProperties": false
+}

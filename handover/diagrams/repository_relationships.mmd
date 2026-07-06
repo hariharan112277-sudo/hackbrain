@@ -1,0 +1,31 @@
+graph LR
+    subgraph Repositories [Concrete Repositories Phase 5]
+        AR[AssetRepository]
+        MR[MachineRepository]
+        SR[SensorRepository]
+        TR[TelemetryRepository]
+        ALR[AlarmRepository]
+    end
+
+    subgraph Interfaces [Integration Protocols Phase 6]
+        IAR[IAssetRepository]
+        IMR[IMachineRepository]
+        ISR[ISensorRepository]
+        ITR[ITelemetryRepository]
+        IALR[IAlarmRepository]
+    end
+
+    subgraph Services [Integration Services Phase 6]
+        RegSvc[MachineRegistryService]
+        QuerySvc[HistoricalQueryService]
+    end
+
+    AR -.->|Implements| IAR
+    MR -.->|Implements| IMR
+    SR -.->|Implements| ISR
+    TR -.->|Implements| ITR
+    ALR -.->|Implements| IALR
+
+    RegSvc -->|Consumes| IMR
+    QuerySvc -->|Consumes| ITR
+    QuerySvc -->|Consumes| IALR

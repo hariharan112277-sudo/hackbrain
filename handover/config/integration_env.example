@@ -1,0 +1,23 @@
+# Core Database Connection Environment Profile
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=iob_admin
+POSTGRES_PASSWORD=iob_secure_pass
+POSTGRES_DB=iob_industrial
+POSTGRES_SCHEMA=industrial
+
+# Connection Pool Properties
+DB_POOL_SIZE=25
+DB_MAX_OVERFLOW=15
+DB_POOL_TIMEOUT=45.0
+DB_POOL_RECYCLE=1200
+
+# MQTT Broker Transport Profile
+IOB_MQTT_URL=mqtt://localhost:1883
+IOB_TOPIC_PREFIX=industrial/iob
+
+# Pipeline & Service Boundaries
+DEFAULT_PAGE_LIMIT=100
+MAX_HISTORICAL_WINDOW_DAYS=30
+ENABLE_REALTIME_STREAMING=true
+ENFORCE_OPC_QUALITY_CHECKS=true

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "iob_telemetry_v1.json",
+  "description": "Strict validation schema for Edge Telemetry Data Packets (QoS 1 - Unretained)",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "machine_id",
+    "sensor_id",
+    "measured_value",
+    "quality_code"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC Z format style execution match"
+    },
+    "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical RFC-4122 Compliant UUIDv4 layout"
+    },
+    "sensor_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical RFC-4122 Compliant UUIDv4 layout"
+    },
+    "measured_value": {
+      "type": "number",
+      "description": "Float64 format precision parameters"
+    },
+    "quality_code": {
+      "type": "integer",
+      "enum": [0, 64, 128, 192],
+      "description": "Strict set inclusion choice constraint: [0, 64, 128, 192]"
+    },
+    "sequence_number": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "An incremental counter used to detect packet loss across data links"
+    }
+  },
+  "additionalProperties": false
+}
