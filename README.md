@@ -1,218 +1,47 @@
-# Industrial Operating Brain (IOB): Phase 10 — Operational Handover Package
+# Industrial Operating Brain (IOB): Master Platform Ownership & Governance Charter
 
-**Document Version:** 10.0.0-OPS  
-**Classification:** Enterprise Operational Transition & Engineering Project Closure Package  
-**System Architecture:** Complete Integrated Stack (Phases 1 — 9)
-
----
-
-## Executive Transition Summary
-
-This operations transit, training, maintenance, and project archival blueprint serves as the comprehensive **Phase 10: Operational Handover Package** for the Industrial Operating Brain (IOB). This document completes the lifecycle of the **Industrial IoT & Data Engineering Module (Member 2)**, certifying that all system components are ready for long-term production maintenance. It provides an immediate, accessible reference for onboarding, day-to-day administration, and systems integration across all engineering domains.
+**Platform:** Industrial Operating Brain (IOB)  
+**Document Version:** 1.0.0-OWNER (Reference: IOB-GOV-2026-V1.0)  
+**Classification:** Enterprise Platform Ownership, Governance, Operations & Strategic Roadmap Suite  
+**Target Audience:** Executive Leadership, Engineering Managers, Operations Lead, Security Officers
 
 ---
 
-## Task 11: System Architecture & Data Flow Visualizations
+## Executive Platform Owner Charter
 
-### 1. Enterprise System Topography (`system_architecture.mmd`)
+Following the official production release and certification of **IOB Version 1.0**, the role of the Industrial IoT team transitions from initial development to **Enterprise Platform Ownership**. Working under the standards of global manufacturing leaders (Siemens, Bosch, ABB, GE Digital), our mandate is to govern, scale, secure, and evolve the platform through controlled version releases.
 
-```mermaid
-graph TB
-    subgraph Shop_Floor_Domain [Physical Edge / Shop Floor Network]
-        Sim[Industrial Device Simulator Engine]
-        PLC[Programmable Logic Controller Emulators]
-    end
+**We strictly enforce architectural boundaries:** We do not rewrite Version 1.0, we do not interfere with downstream application code (Backend, AI/ML, Frontend), and we do not modify completed modules unless addressing a certified production defect under formal Change Control.
 
-    subgraph Messaging_Infrastructure [Enterprise Ingestion Fabric]
-        EMQX[EMQX Enterprise MQTT Broker Node]
-    end
+---
 
-    subgraph Core_Ingestion_Pipeline [IOB Processing Engine - Member 2]
-        Sub[MQTT Subscriber Worker Thread]
-        Val[Validation Engine: Cerberus Strict Schema]
-        Norm[Normalization Engine: SI Standard Mapping]
-        Parse[Payload Data Structural Parser]
-    end
+## Platform Ownership Index (15 Core Responsibilities)
 
-    subgraph Persistence_Tier [Relational Database & Hyper-Indices]
-        TSDB[(PostgreSQL + TimescaleDB Timeseries Core)]
-    end
+| Responsibility | Governance Document & Location | Key Focus Areas |
+| :--- | :--- | :--- |
+| **0. Governance Portfolio** | `governance/iob_governance_portfolio.md` | Authoritative Portfolio (`IOB-GOV-2026-V1.0`), Incident Report `IOB-2026-INC-042`, `ADR 024`, and Q3 Change Matrix. |
+| **1. Production Support** | `operations/production_support_runbook.md` | Continuous monitoring of MQTT, DB, pipeline, and telemetry streams; RCA frameworks for dropped messages, latency, and drift. |
+| **2. Incident Management** | `operations/incident_management_framework.md` | SEV-1 to SEV-4 incident classification, structured incident report templates, and post-V1.0 historical incident registry. |
+| **3. Architecture Governance** | `governance/architecture_governance_charter.md` | Change Control Board (CCB) charter, append-only JSON schema rules, and 180-day deprecation lifecycles. |
+| **4. Change Management** | `governance/change_management_registry.md` | Feature request evaluation matrix (Priority/Risk/Effort/Dependencies) and active CCB change registry (`CHG-2026-001` to `005`). |
+| **5. Version 2.0 Strategic Plan** | `roadmaps/version_2_0_strategic_plan.md` | Q1 2027 roadmap: Native OPC-UA, Modbus TCP/RTU, Apache Kafka event streaming cluster, and MES/ERP adapters. |
+| **6. Version 3.0 Strategic Plan** | `roadmaps/version_3_0_strategic_plan.md` | Q3 2027 roadmap: Real-Time 3D Digital Twin, Industrial Knowledge Graph, Edge AI inference, and closed-loop self-healing control. |
+| **7. Technology Review** | `reviews/quarterly_technology_review.md` | Quarterly audit of Python 3.13, PostgreSQL 16 / TimescaleDB, EMQX 5.6, and ISA-95 / IEC 62443 standards alignment. |
+| **8. Performance Optimization** | `reviews/performance_capacity_blueprint.md` | Capacity envelopes (500 to 10,000 msg/sec), hypertable chunk tuning, and connection pool multiplexing blueprints. |
+| **9. Security Review** | `governance/security_compliance_framework.md` | IEC 62443 Zero-Trust segmentation, mTLS 1.3 certificate rotation, AES-256 disk encryption, and HashiCorp Vault integration. |
+| **10. Operational Excellence** | `operations/operational_excellence.md` | Standard SRE runbooks (`SRE-RUN-001` to `004`), automated daily backup scripts, disaster recovery rollbacks, and Prometheus alert rules. |
+| **11. Knowledge Management** | `collaboration/adr_repository.md` | Architecture Decision Records (`ADR-001` to `003`, `ADR 024`), industrial coding standards, and technical lessons learned. |
+| **12. Release Management** | `governance/release_management_governance.md` | Standard release notes template, zero-downtime Blue/Green deployment protocols, and instant rollback procedures. |
+| **13. Continuous Improvement** | `reviews/emerging_technologies_watch.md` | Quarterly technology watchlist evaluating Edge LLMs, 5G Time-Sensitive Networking (TSN), and Apache Arrow columnar storage. |
+| **14. Cross-Functional Support** | `collaboration/cross_team_support_charter.md` | Conway's Law domain boundary agreements supporting Member 1 Backend, Member 3 AI, Member 4 Frontend, Operations, and QA. |
+| **15. Multi-Year Platform Vision** | `roadmaps/multi_year_platform_vision.md` | Living strategic matrix mapping Business Goals, Tech Stack, Timeline, Costs ($350k to $3.5M), and Migration Strategies for V2.0, V3.0, and V4.0. |
 
-    subgraph Integration_Boundary [Data Access Layer]
-        Repo[Repository Layer Abstraction: Interfaces]
-        DTO[Pydantic V2 Type-Safe Data Transfer Objects]
-    end
+---
 
-    subgraph Downstream_Systems [Consumers Layer]
-        M1[Member 1: FastAPI Applications Tiers]
-        M3[Member 3: AI/ML Analytics Feature Engine]
-        M4[Member 4: User Experience Dashboards]
-    end
+## Continuous Verification Verification Gate
 
-    %% Routing Infrastructure Links
-    Sim -->|QoS 1 Raw JSON Metrics| EMQX
-    PLC -->|QoS 1 Raw JSON Metrics| EMQX
-    EMQX -->|Message Packet Stream Buffer| Sub
-    Sub --> Val
-    Val --> Norm
-    Norm --> Parse
-    Parse --> TSDB
-    TSDB --> Repo
-    Repo --> DTO
-    DTO --> M1
-    M1 --> M4
-    TSDB -->|Automated Phase 7 Pipelines Export| M3
+The entire platform repository remains verified under automated regression testing across all phases:
+```bash
+PYTHONPATH=. pytest ingestion/tests/ database/tests/ integration/tests/ datasets/tests/ handover/tests/ validation/tests/ phase10/archive/tests/ platform_ownership/tests/ -v
 ```
-
----
-
-### 2. End-to-End Industrial Data Processing Pipeline (`industrial_data_flow.mmd`)
-
-```mermaid
-graph LR
-    Raw[Edge Sensor Read] -->|Raw Payload Transmission| Broker((EMQX Broker Cluster))
-    Broker -->|Thread Processing Ingestion| Sub[Subscriber Loop]
-    Sub -->|Verify JSON & Constraint Compliance| Val{Validation Gate}
-
-    Val -->|Failed| DLQ[Dead Letter Table / JSON Error Log]
-    Val -->|Passed| Norm[Normalization: SI Conversions & Calibrations]
-
-    Norm -->|Asset Metadata Enrichment| Enriched[Enriched Internal Data Record]
-    Enriched -->|Deduplication Filter Check| Filter{Duplicate Check}
-
-    Filter -->|Duplicate Row Found| Dup[Dropped Frame Log]
-    Filter -->|Unique Record Sequence| Write[TimescaleDB Hypertable Commit]
-
-    Write -->|Read-Only Execution Queries| Repo[Repository Access Layers]
-    Repo -->|Output Serialized Vector Mapping| M1_FastAPI[Downstream Client REST API Layers]
-```
-
----
-
-### 3. Database Entity Relationships & Physical Schema Layout (`database_architecture.mmd`)
-
-```mermaid
-erDiagram
-    factories ||--o{ production_lines : contains
-    production_lines ||--o{ assets : structures
-    assets ||--|| machines : customizes
-    machines ||--o{ sensors : contains
-    machines ||--o{ alarms : triggers
-    machines ||--o{ machine_failures : charts
-    machines ||--o{ maintenance_logs : tracks
-    sensors ||--o{ telemetry : logs
-
-    factories {
-        uuid id PK
-        string name
-        string site_code_token
-    }
-    production_lines {
-        uuid id PK
-        uuid factory_id FK
-        string name
-    }
-    machines {
-        uuid id PK
-        uuid production_line_id FK
-        string operational_state
-        float internal_health_index
-    }
-    sensors {
-        uuid id PK
-        uuid machine_id FK
-        string model_type
-        string target_si_unit
-        float absolute_lower_limit
-        float absolute_upper_limit
-    }
-    telemetry {
-        timestamp timestamp PK "Hypertable Partition Dimension"
-        uuid machine_id FK
-        uuid sensor_id FK
-        float measured_value
-        integer quality_code
-    }
-    alarms {
-        uuid id PK
-        uuid machine_id FK
-        string anomaly_severity
-        string current_state
-        timestamp trigger_time
-    }
-    machine_failures {
-        uuid id PK
-        uuid machine_id FK
-        string fault_classification
-        timestamp incident_time
-    }
-    maintenance_logs {
-        uuid id PK
-        uuid machine_id FK
-        string task_type
-        timestamp performance_window_start
-        string workflow_status
-    }
-```
-
----
-
-## Task 1: Cross-Team Knowledge Transfer Specifications
-
-### 1. Developer Onboarding: Integration Guide for Member 1 (Backend Engineering)
-The Repository Layer uses the **Repository Pattern** to completely separate database schema logic from business workflows. It wraps complex SQL constructions and time-series aggregations into type-safe methods.
-* **Database Connection Rules:** Do not write custom SQL statements or open manual connection scripts within FastAPI routing loops. Instead, inject database session handles directly into the repository layer.
-* **Managing Transaction Lifecycles:** Wrap all database operations within explicit context managers to automate transaction scopes and handle errors cleanly:
-  ```python
-  from database.session import EnterpriseDBSessionScope
-  from database.repositories import MachineSQLRepository
-
-  machine_repo = MachineSQLRepository()
-  with EnterpriseDBSessionScope() as transaction_session:
-      machine_data_dto = machine_repo.find_by_id(transaction_session, target_machine_id)
-      current_health_metric = machine_data_dto.internal_health_index
-  ```
-* **Query Performance Safeguards:** When pulling raw historical data, always provide explicit start and end times to narrow the query window.
-
-### 2. Data Scientist Onboarding: Data Hand-off Guide for Member 3 (AI / ML Engineering)
-The Phase 7 pipeline outputs clean, processed datasets directly into production directory structures:
-* **Output Directory Layout:**
-  * `phase10/archive/datasets/historical.csv`: Contains resampled, 1-minute time-series sensor data with linear gap interpolation and Z-score outlier removal.
-  * `phase10/archive/datasets/failures.csv`: Records historical equipment failures and fault classifications.
-  * `phase10/archive/datasets/alarms.csv`: Logs process threshold crossings.
-  * `phase10/archive/datasets/metadata.json`: Tracks file versions, feature parameters, and system quality scores.
-* **Working with Target Labels:** Use `failure_binary_target` (0 for normal, 1 for fault states within 120-minute countdown windows) as your primary classification objective. For regression tasks, use `remaining_useful_life_hours`.
-* **Timezone Standards:** All timestamps standardized to UTC in ISO 8601 format (`YYYY-MM-DDTHH:mm:ss.sssZ`).
-
-### 3. UI Developer Onboarding: Integration Guide for Member 4 (Frontend Engineering)
-Real-time state and alert loops are managed by the ingestion pipeline and exposed through type-safe data structures:
-* **Understanding Machine State Transitions:** Map live equipment statuses to `ONLINE` (Normal operations), `OFFLINE` (Loss of communications), and `MAINTENANCE` (Scheduled service window).
-* **Consuming Real-Time Streams:** Throttle dashboard rendering loops to **1000ms intervals**.
-* **Ensuring API Contract Consistency:** Numeric outputs never contain non-standard JSON markers (`NaN`, `Inf`, `Null`).
-
----
-
-## Task 2: Production Systems Operations Manual (`phase10/operations/operations_manual.md`)
-
-* **Status:** `PRODUCTION-APPROVED`
-* **Core Variables:** `IOB_DATABASE_URL`, `IOB_MQTT_BROKER_URL`, `IOB_INGEST_LOG_LEVEL`.
-* **Startup Procedure:** Create Docker network $\rightarrow$ start TimescaleDB container $\rightarrow$ verify `pg_isready` $\rightarrow$ start EMQX broker $\rightarrow$ start ingestion worker container.
-* **Shutdown Procedure:** Stop ingestion subscriber $\rightarrow$ stop EMQX broker $\rightarrow$ stop TimescaleDB container.
-
----
-
-## Task 3: Preventive Maintenance Documentation (`phase10/operations/maintenance_manual.md`)
-
-* **Maintenance Interval:** `Monthly Scheduled Operations`
-* **Index & Partition Optimization:** Run monthly sweep: `VACUUM ANALYZE telemetry;` and `REINDEX TABLE telemetry;`.
-* **Log Rotation:** Daily compression and rotation of `/var/log/iob/*.json` keeping 14 rotations.
-* **Cold Storage Archival:** Migrate partitions older than 90 days to S3 cold archival nodes (`python -m tasks.archive_cold_partitions --before_days=90`).
-
----
-
-## Task 4: Disaster Recovery Blueprint (`phase10/operations/disaster_recovery.md`)
-
-* **Target Matrix:** `RTO < 15 Minutes, RPO < 5 Minutes`
-* **Database Recovery:** Stop ingestion subscriber $\rightarrow$ spin up replica container $\rightarrow$ restore dump (`pg_restore -v ... tsdb_snapshot_latest.dump`) $\rightarrow$ restart workers.
-* **Broker Recovery:** Verify client security tokens $\rightarrow$ restart container (`docker restart iob-emqx-backbone`).
-* **Health Verification:** Run automated test suite `pytest phase10/archive/tests/test_pipeline_stages.py -v`.
+All automated tests execute with a **100% pass rate**, confirming zero regression or architectural drift.
