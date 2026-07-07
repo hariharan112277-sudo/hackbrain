@@ -1,1 +1,1 @@
-"""Tests for Platform Ownership Governance Portfolio."""
+"""Test package for IOB Data Engine - Stage 1."""

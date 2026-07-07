@@ -1,6 +1,18 @@
-# IOB Phase 3 - Simulation Engine runtime dependencies
-PyYAML>=6.0
-paho-mqtt>=1.6.0
+# =============================================================================
+# IOB Data Engine - Stage 1 Dependencies
+# =============================================================================
 
-# Development / testing
+# MQTT broker client (publisher + subscriber)
+paho-mqtt>=2.0.0
+
+# Pydantic for strict schema validation (v1 or v2 compatible)
+pydantic>=1.10,<3.0
+
+# PostgreSQL driver (sync)
+psycopg2-binary>=2.9.0
+
+# YAML configuration
+PyYAML>=6.0
+
+# Tests
 pytest>=7.0

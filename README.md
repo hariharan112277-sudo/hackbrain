@@ -1,47 +1,258 @@
-# Industrial Operating Brain (IOB): Master Platform Ownership & Governance Charter
+# IOB Data Engine — Stage 1
 
-**Platform:** Industrial Operating Brain (IOB)  
-**Document Version:** 1.0.0-OWNER (Reference: IOB-GOV-2026-V1.0)  
-**Classification:** Enterprise Platform Ownership, Governance, Operations & Strategic Roadmap Suite  
-**Target Audience:** Executive Leadership, Engineering Managers, Operations Lead, Security Officers
+**Industrial Data Acquisition & Simulation Setup** for the IOB
+(Industrial Operational Brain) project.  Owned by **Member 2**.
 
----
-
-## Executive Platform Owner Charter
-
-Following the official production release and certification of **IOB Version 1.0**, the role of the Industrial IoT team transitions from initial development to **Enterprise Platform Ownership**. Working under the standards of global manufacturing leaders (Siemens, Bosch, ABB, GE Digital), our mandate is to govern, scale, secure, and evolve the platform through controlled version releases.
-
-**We strictly enforce architectural boundaries:** We do not rewrite Version 1.0, we do not interfere with downstream application code (Backend, AI/ML, Frontend), and we do not modify completed modules unless addressing a certified production defect under formal Change Control.
+A configuration-driven, multi-threaded IIoT data ingestion and
+simulation pipeline that feeds the rest of the system (Member 1's
+REST APIs, Member 3's AI/ML stack, Member 4's K8s deployment).
 
 ---
 
-## Platform Ownership Index (15 Core Responsibilities)
+## 🎯 What this package does
 
-| Responsibility | Governance Document & Location | Key Focus Areas |
-| :--- | :--- | :--- |
-| **0. Governance Portfolio** | `governance/iob_governance_portfolio.md` | Authoritative Portfolio (`IOB-GOV-2026-V1.0`), Incident Report `IOB-2026-INC-042`, `ADR 024`, and Q3 Change Matrix. |
-| **1. Production Support** | `operations/production_support_runbook.md` | Continuous monitoring of MQTT, DB, pipeline, and telemetry streams; RCA frameworks for dropped messages, latency, and drift. |
-| **2. Incident Management** | `operations/incident_management_framework.md` | SEV-1 to SEV-4 incident classification, structured incident report templates, and post-V1.0 historical incident registry. |
-| **3. Architecture Governance** | `governance/architecture_governance_charter.md` | Change Control Board (CCB) charter, append-only JSON schema rules, and 180-day deprecation lifecycles. |
-| **4. Change Management** | `governance/change_management_registry.md` | Feature request evaluation matrix (Priority/Risk/Effort/Dependencies) and active CCB change registry (`CHG-2026-001` to `005`). |
-| **5. Version 2.0 Strategic Plan** | `roadmaps/version_2_0_strategic_plan.md` | Q1 2027 roadmap: Native OPC-UA, Modbus TCP/RTU, Apache Kafka event streaming cluster, and MES/ERP adapters. |
-| **6. Version 3.0 Strategic Plan** | `roadmaps/version_3_0_strategic_plan.md` | Q3 2027 roadmap: Real-Time 3D Digital Twin, Industrial Knowledge Graph, Edge AI inference, and closed-loop self-healing control. |
-| **7. Technology Review** | `reviews/quarterly_technology_review.md` | Quarterly audit of Python 3.13, PostgreSQL 16 / TimescaleDB, EMQX 5.6, and ISA-95 / IEC 62443 standards alignment. |
-| **8. Performance Optimization** | `reviews/performance_capacity_blueprint.md` | Capacity envelopes (500 to 10,000 msg/sec), hypertable chunk tuning, and connection pool multiplexing blueprints. |
-| **9. Security Review** | `governance/security_compliance_framework.md` | IEC 62443 Zero-Trust segmentation, mTLS 1.3 certificate rotation, AES-256 disk encryption, and HashiCorp Vault integration. |
-| **10. Operational Excellence** | `operations/operational_excellence.md` | Standard SRE runbooks (`SRE-RUN-001` to `004`), automated daily backup scripts, disaster recovery rollbacks, and Prometheus alert rules. |
-| **11. Knowledge Management** | `collaboration/adr_repository.md` | Architecture Decision Records (`ADR-001` to `003`, `ADR 024`), industrial coding standards, and technical lessons learned. |
-| **12. Release Management** | `governance/release_management_governance.md` | Standard release notes template, zero-downtime Blue/Green deployment protocols, and instant rollback procedures. |
-| **13. Continuous Improvement** | `reviews/emerging_technologies_watch.md` | Quarterly technology watchlist evaluating Edge LLMs, 5G Time-Sensitive Networking (TSN), and Apache Arrow columnar storage. |
-| **14. Cross-Functional Support** | `collaboration/cross_team_support_charter.md` | Conway's Law domain boundary agreements supporting Member 1 Backend, Member 3 AI, Member 4 Frontend, Operations, and QA. |
-| **15. Multi-Year Platform Vision** | `roadmaps/multi_year_platform_vision.md` | Living strategic matrix mapping Business Goals, Tech Stack, Timeline, Costs ($350k to $3.5M), and Migration Strategies for V2.0, V3.0, and V4.0. |
+| Layer | Module | Purpose |
+| --- | --- | --- |
+| Config | `src/config_loader.py` | YAML loader + legacy `machines.yaml`/`sensors.yaml` merge |
+| Simulator | `src/simulator/device_profiles.py` | `TelemetryGenerator` (sinusoidal process variation + bounded noise) |
+| Simulator | `src/simulator/core_simulator.py` | `IndustrialSimulator` — one thread per device, publishes JSON to MQTT |
+| Ingestion | `src/ingestion/validator.py` | **Pydantic** schema enforcement (`TelemetryPayloadSchema`) |
+| Ingestion | `src/ingestion/parser.py` | `NormalizationEngine` — UNS topic parsing, epoch → ISO 8601 UTC |
+| Ingestion | `src/ingestion/mqtt_client.py` | `TelemetryIngestionWorker` — MQTT subscriber, drives the pipeline |
+| Database | `src/database/telemetry_repository.py` | `TelemetryRepository` — `iob_normalized_telemetry` table + INSERT |
+| Wiring | `src/integration_bridge.py` | Auto-discovers existing project root for legacy reuse |
+| Entry | `main_stage1.py` | Boots all three layers with graceful shutdown |
+
+**Strictly out of scope** (per spec):
+- ❌ FastAPI endpoints, RBAC, auth (Member 1)
+- ❌ Knowledge Graph, ML models (Member 3)
+- ❌ K8s manifests, CI/CD (Member 4)
 
 ---
 
-## Continuous Verification Verification Gate
+## 🗂️ Folder structure
 
-The entire platform repository remains verified under automated regression testing across all phases:
-```bash
-PYTHONPATH=. pytest ingestion/tests/ database/tests/ integration/tests/ datasets/tests/ handover/tests/ validation/tests/ phase10/archive/tests/ platform_ownership/tests/ -v
 ```
-All automated tests execute with a **100% pass rate**, confirming zero regression or architectural drift.
+iob_data_engine/
+├── config/
+│   ├── mqtt_broker.conf             # Mosquitto broker config
+│   └── simulator_config.yaml        # YAML: version, broker, devices[]
+├── src/
+│   ├── __init__.py
+│   ├── config_loader.py             # YAML loader + legacy merge
+│   ├── integration_bridge.py        # Optional bridge to existing repo
+│   ├── simulator/
+│   │   ├── __init__.py
+│   │   ├── device_profiles.py       # TelemetryGenerator
+│   │   └── core_simulator.py        # IndustrialSimulator (threaded)
+│   ├── ingestion/
+│   │   ├── __init__.py
+│   │   ├── validator.py             # Pydantic TelemetryPayloadSchema
+│   │   ├── parser.py                # NormalizationEngine (UNS parsing)
+│   │   └── mqtt_client.py           # TelemetryIngestionWorker
+│   └── database/
+│       ├── __init__.py
+│       └── telemetry_repository.py  # iob_normalized_telemetry
+├── tests/
+│   ├── __init__.py
+│   ├── test_config_loader.py
+│   ├── test_simulator.py
+│   ├── test_ingestion.py
+│   ├── test_database.py
+│   └── test_e2e_pipeline.py
+├── main_stage1.py                   # Orchestrator entry point
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 📜 YAML contract (`config/simulator_config.yaml`)
+
+```yaml
+version: "1.0"
+broker:
+  host: "localhost"
+  port: 1883
+  keepalive: 60
+  client_id: "iob_simulator_engine"
+devices:
+  - id: "DEV_CNC_001"
+    name: "5-Axis CNC Milling Machine"
+    type: "discrete"
+    topic: "iob/uns/site_alpha/area_machining/cnc001/telemetry"
+    update_interval_secs: 1.0
+    metrics:
+      - name: "spindle_speed_rpm"
+        data_type: "float"
+        min_val: 0.0
+        max_val: 12000.0
+        noise_amplitude: 50.0
+database:
+  dbname: "iob_db"
+  user: "postgres"
+  password: "postgres"
+  host: "localhost"
+  port: 5432
+```
+
+**Topic convention**: `iob/uns/<site>/<area>/<device_id>/telemetry`
+
+**Wire payload format** (published by simulator):
+```json
+{
+  "device_id": "DEV_CNC_001",
+  "timestamp": 1700000000.123,
+  "telemetry": {
+    "spindle_speed_rpm": 8500.1234,
+    "vibration_amplitude_g": 1.2
+  }
+}
+```
+
+**Normalized record** (stored in PG):
+```json
+{
+  "device_id":     "DEV_CNC_001",
+  "site_id":       "site_alpha",
+  "area_id":       "area_machining",
+  "timestamp_utc": "2024-01-01T00:00:00.123000+00:00",
+  "metrics":       { ... }
+}
+```
+
+---
+
+## 🚀 Quickstart
+
+### 1. Install dependencies
+
+```bash
+cd iob_data_engine
+pip install -r requirements.txt
+```
+
+### 2. Start the broker and DB
+
+```bash
+# Mosquitto MQTT broker
+docker run -d --name mosquitto \
+  -p 1883:1883 \
+  -v "$(pwd)/config/mqtt_broker.conf:/mosquitto/config/mosquitto.conf" \
+  eclipse-mosquitto:2
+
+# PostgreSQL with the schema from this Stage 1
+docker run -d --name iob-postgres \
+  -e POSTGRES_DB=iob_db \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  postgres:15
+```
+
+### 3. Run Stage 1
+
+```bash
+python main_stage1.py
+```
+
+Sample log output:
+```
+[IOB STAGE 1] Starting Industrial Operating Brain Infrastructure...
+[INFO] iob.config_loader: Loaded config from .../config/simulator_config.yaml
+       (version=1.0, devices=3)
+[INFO] iob.repository: Telemetry table initialized (iob_normalized_telemetry)
+[INFO] iob.ingestion.mqtt: Ingestion worker connected; subscribed to iob/uns/#
+[INFO] iob.simulator: Started simulator thread for DEV_CNC_001 (...)
+[INFO] iob.simulator: Started simulator thread for DEV_RE_002 (...)
+[INFO] iob.simulator: Started simulator thread for DEV_HP_003 (...)
+[IOB STAGE 1] Run loop active. Simulating and Ingesting IIoT stream data.
+              Press Ctrl+C to terminate.
+```
+
+CLI flags:
+
+```bash
+python main_stage1.py --no-database    # simulator → MQTT → nowhere
+python main_stage1.py --no-simulator   # ingestion worker only
+python main_stage1.py --runtime 30     # bounded smoke test (auto-exit)
+python main_stage1.py --log-level DEBUG
+```
+
+---
+
+## 🧪 Tests
+
+```bash
+cd iob_data_engine
+PYTHONPATH=. python -m pytest tests/ -v
+# Or plain unittest:
+PYTHONPATH=. python -m unittest discover -s tests -v
+```
+
+Coverage:
+
+* `test_config_loader.py` — YAML loading, required keys, error paths
+* `test_simulator.py` — TelemetryGenerator bounds/determinism;
+  IndustrialSimulator thread spawn, MQTT publish format
+* `test_ingestion.py` — Pydantic schema rejects bad payloads,
+  NormalizationEngine extracts UNS components, worker stats
+* `test_database.py` — Repository init_tables & save_telemetry
+* `test_e2e_pipeline.py` — Full simulator → worker → repo path
+  using mocked paho & DB
+
+---
+
+## 🔌 Integration with your existing repo
+
+Drop this folder next to your existing `simulator/`, `ingestion/`,
+`database/`, `integration/`.  Two automatic integration points:
+
+### A. Reuse legacy `config/machines.yaml` + `config/sensors.yaml`
+
+`ConfigLoader.load_with_legacy()` auto-detects those files at
+`<project_root>/config/` and merges them into the Stage 1 device list
+(idempotent — duplicate `id`s are skipped).  Pass `--project-root`
+to `main_stage1.py` to point at the parent repo, or rely on the
+auto-discovery in `src/integration_bridge.py`.
+
+### B. Reuse existing PG connection wrapper
+
+`src/integration_bridge.py:try_import_existing_postgres_connection()`
+walks parent dirs looking for the existing project root and tries to
+import `database.connection.PostgresConnection`.  If found, you can
+swap Stage 1's wrapper:
+
+```python
+from src.integration_bridge import try_import_existing_postgres_connection
+PostgresConnection = try_import_existing_postgres_connection()
+```
+
+---
+
+## ✅ Validation checklist (from spec)
+
+- [x] YAML config loads cleanly via `ConfigLoader.load_yaml()`
+- [x] Pydantic rejects non-numeric / structurally invalid payloads
+- [x] UNS topic parsing splits `site_id` and `area_id`
+- [x] Native SQL `INSERT` into `iob_normalized_telemetry` works
+
+---
+
+## 🛡️ Risk mitigations (per spec)
+
+| Risk | Mitigation |
+| --- | --- |
+| **#1** Schema drift between simulator & AI/API consumers | Strict Pydantic schema in `validator.py`; explicit `simulator_config.yaml` contract. Any change requires Team Checkpoint. |
+| **#2** High ingestion latency under load | UNS topic fan-in via single `iob/uns/#` subscription; per-message INSERT with `commit()`. For higher throughput, swap `TelemetryRepository` to use batched `executemany` (a drop-in replacement). |
+
+---
+
+## 📜 Team checkpoints
+
+* **Checkpoint 1 (Member 1)** — `iob_normalized_telemetry` schema
+  (see `telemetry_repository.py:INIT_TABLE_SQL`).  Confirm column
+  names + types align with Member 1's REST querying layer.
+* **Checkpoint 2 (Member 3)** — Output JSON shape of
+  `NormalizationEngine.normalize()` (see `parser.py`).  Confirm it
+  matches Graph RAG / predictive training expectations.
