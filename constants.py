@@ -1,0 +1,8 @@
+"""
+IOB Phase 4 Pipeline Constants Registry
+"""
+
+QUALITY_GOOD = "GOOD"
+QUALITY_CLAMPED = "CLAMPED"
+QUALITY_BAD = "BAD"
+QUALITY_UNCERTAIN = "UNCERTAIN"
