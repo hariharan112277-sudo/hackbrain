@@ -1,0 +1,20 @@
+{
+  "unsw_topic": "IOB_GLOBAL/CAPS_01/PAD_02/MAL_05/MC_CNC_01_A/telemetry",
+  "payload": {
+    "timestamp": "2026-07-09T10:00:00.000000Z",
+    "asset_id": "MC_CNC_01_A",
+    "machine_state": "PRODUCTION",
+    "health_score": 98.4,
+    "metrics": {
+      "temperature": 68.42,
+      "pressure": 5.21,
+      "rpm": 8500.0,
+      "vibration": 14.21,
+      "voltage": 400.12,
+      "current": 64.22,
+      "power": 25.69,
+      "energy": 145280.45
+    },
+    "alarm_state": "NOMINAL"
+  }
+}

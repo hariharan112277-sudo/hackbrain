@@ -1,0 +1,8 @@
+{
+  "package_id": "IOB_M2_STAGE3B_ENT_PKG",
+  "release_version": "1.0.0",
+  "schema_compatibility_version": "2.4.0",
+  "release_date": "2026-07-09T10:00:00Z",
+  "author": "Industrial IoT & Data Architecture Lead",
+  "lifecycle_stage": "PRODUCTION_READY_PROTOTYPE"
+}

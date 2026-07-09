@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "site_hierarchy": "IOB_GLOBAL.CAPS_01.PAD_02.MAL_05",
+  "machines": [
+    {
+      "machine_id": "MC_CNC_01_A",
+      "machine_type": "SUBTRACTIVE_MILL_V4",
+      "manufacturer": "Siemens AG / Custom Integration",
+      "model": "SINUMERIK-840D-SL",
+      "criticality": "CRITICAL_PATH_A",
+      "power_rating_kw": 45.0,
+      "max_rpm": 12000,
+      "commission_date": "2024-03-15T00:00:00Z"
+    },
+    {
+      "machine_id": "MC_ROB_02_B",
+      "machine_type": "ARTICULATED_PAYLOAD_ROBOT",
+      "manufacturer": "ABB Robotics",
+      "model": "IRB-6700-150/3.20",
+      "criticality": "CRITICAL_PATH_B",
+      "power_rating_kw": 22.5,
+      "max_payload_kg": 150,
+      "commission_date": "2024-06-20T00:00:00Z"
+    }
+  ]
+}

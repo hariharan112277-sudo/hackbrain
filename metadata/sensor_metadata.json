@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "sensors": [
+    {
+      "sensor_id": "SN_VIB_XYZ_01",
+      "associated_machine": "MC_CNC_01_A",
+      "metric_type": "VIBRATION_RMS",
+      "unit": "m/s^2",
+      "sampling_rate_hz": 10,
+      "nominal_min": 0.0,
+      "nominal_max": 120.0,
+      "warning_high": 180.0,
+      "critical_high": 250.0
+    },
+    {
+      "sensor_id": "SN_TMP_CORE_02",
+      "associated_machine": "MC_CNC_01_A",
+      "metric_type": "TEMPERATURE_CORE",
+      "unit": "CELSIUS",
+      "sampling_rate_hz": 1,
+      "nominal_min": 15.0,
+      "nominal_max": 75.0,
+      "warning_high": 95.0,
+      "critical_high": 115.0
+    },
+    {
+      "sensor_id": "SN_CRT_DRV_03",
+      "associated_machine": "MC_CNC_01_A",
+      "metric_type": "CURRENT_DRIVE",
+      "unit": "AMPERE",
+      "sampling_rate_hz": 100,
+      "nominal_min": 0.0,
+      "nominal_max": 90.0,
+      "warning_high": 125.0,
+      "critical_high": 150.0
+    }
+  ]
+}

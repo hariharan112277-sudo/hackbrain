@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IOB Stage 3B Validation Rules",
+  "version": "1.0.0",
+  "rules": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "required": true
+    },
+    "asset_id": {
+      "type": "string",
+      "pattern": "^MC_[A-Z0-9_]+$",
+      "required": true
+    },
+    "machine_state": {
+      "type": "string",
+      "enum": ["IDLE", "WARM_UP", "PRODUCTION", "MAINTENANCE", "FAULTED", "SHUTDOWN"]
+    },
+    "metrics": {
+      "temperature": { "type": "number", "minimum": -50, "maximum": 1000 },
+      "vibration": { "type": "number", "minimum": 0, "maximum": 500 },
+      "current": { "type": "number", "minimum": 0, "maximum": 250 }
+    }
+  }
+}
