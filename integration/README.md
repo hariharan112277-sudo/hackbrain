@@ -26,10 +26,20 @@ This module defines the architectural interface boundaries for the Industrial Op
            raise HTTPException(status_code=404, detail=str(ex))
    ```
 
+## Phase 2 Backend Contract Extension
+The Phase 2 backend/API contract layer is now provided as an additive module:
+
+```python
+from integration.backend_contracts import TelemetryQueryRequest, ProblemDetails, ApiEnvelope
+```
+
+This extension is intentionally contract-only. It does not declare FastAPI routes, open database sessions, subscribe to MQTT topics, or implement business workflows. It freezes the external HTTP/WebSocket request/response shape while the existing `integration.contracts` module remains the internal DTO source.
+
 ## Local Verification Testing Strategy
-Execute the contract compliance and DTO validation test suite using the following command:
+Execute the contract compliance and DTO validation test suite using the following commands:
 ```bash
 pytest integration/tests/test_contracts_and_services.py -vv
+pytest tests/test_phase2_backend_contracts.py -vv
 ```
 
 ---
@@ -41,6 +51,7 @@ integration/
 ├── README.md
 ├── interfaces.py
 ├── contracts.py
+├── backend_contracts.py
 ├── registry.py
 ├── mqtt_service.py
 ├── telemetry_service.py
@@ -53,7 +64,8 @@ integration/
 ├── logger.py
 ├── config.py
 ├── docs/
-│   └── openapi_specs.yaml
+│   ├── openapi_specs.yaml
+│   └── openapi_phase2_contracts.yaml
 ├── examples/
 │   └── backend_orchestration_sample.py
 └── tests/

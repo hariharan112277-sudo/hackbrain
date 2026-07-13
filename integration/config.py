@@ -1,8 +1,21 @@
 """
 Integration Layer Configuration Models.
+
+The project prefers `pydantic-settings` when available. A lightweight Pydantic
+fallback is provided so contract-only imports such as `integration.backend_contracts`
+remain executable in minimal validation environments where optional runtime
+settings dependencies have not been installed yet.
 """
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
+
+try:  # pragma: no cover - depends on optional runtime package availability
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ModuleNotFoundError:  # contract/test environment fallback
+    class BaseSettings(BaseModel):
+        model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    def SettingsConfigDict(**kwargs):
+        return ConfigDict(**{k: v for k, v in kwargs.items() if k in {"extra", "populate_by_name"}})
 
 
 class IntegrationSettings(BaseSettings):
@@ -19,7 +32,8 @@ class IntegrationSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
+        populate_by_name=True,
     )
 
 

@@ -1,0 +1,40 @@
+========================================================================================================================
+                          IOB PROJECT CONTRACT BOUNDARY & HIGH-LEVEL LIFECYCLE MAP
+========================================================================================================================
+
+  [ Frontend UI (Mem 4) ]          [ AI Workloads (Mem 3) ]        [ Third-Party Industrial Systems (ERP/MES) ]
+            │                                  │                                         │
+            └──────────────────────────────────┼─────────────────────────────────────────┘
+                                               │
+                                               ▼  [ Enforces HTTP API Route Schemas & WS Contracts ]
+                       ┌────────────────────────────────────────────────────────┐
+                       │                   API GATEWAY / INGRESS                │
+                       │           (Token Validation & Correlation Ingest)      │
+                       └────────────────────────────────────────────────────────┘
+                                               │
+                                               ▼  [ Pydantic Request Models: request_models.md ]
+                       ┌────────────────────────────────────────────────────────┐
+                       │               FASTAPI APPLICATION LAYER                │
+                       │       - Input Schema Constraints Validation            │
+                       │       - Error Handling Mapping (RFC 7807 Details)      │
+                       └────────────────────────────────────────────────────────┘
+                                               │
+                                               ▼  [ Application Domain Objects: dto_architecture.md ]
+                       ┌────────────────────────────────────────────────────────┐
+                       │                  CORE SERVICE LAYER                    │
+                       │          - Fine-grained RBAC Policy Checking           │
+                       │          - Compute & Analytical Orchestration          │
+                       └────────────────────────────────────────────────────────┘
+                                               │
+                                               ▼  [ Repository Interfaces: repository_contract_review.md ]
+                       ┌────────────────────────────────────────────────────────┐
+                       │              IIoT INFRASTRUCTURE LAYER (Mem 2)         │
+                       │       - Relational & Document Graph Storage Engines    │
+                       │       - High-Frequency Time-Series Data Partitions     │
+                       └────────────────────────────────────────────────────────┘
+                                               │
+                                               ▼  [ Structural DB Schemas: database_mapping.md ]
+                                   [ PHYSICAL INDUSTRIAL DATA TIERS ]
+                               (TimescaleDB / PostgreSQL / Redis Core cluster)
+
+========================================================================================================================
