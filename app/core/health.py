@@ -24,11 +24,17 @@ logger = logging.getLogger("app.health")
 
 async def check_database_connection() -> bool:
     """
-    Placeholder for database health check.
-    Will be fully wired up in Phase 4 during DB setup.
+    Phase 4 database readiness probe.
+
+    Performs a lightweight `SELECT 1` via the Member 2 connection manager.
+    Returns False if the industrial database is unreachable.
     """
-    # Simulate a quick PING check
-    return True
+    try:
+        from database.connection import connection_manager
+        return connection_manager.check_health()
+    except Exception as exc:
+        logger.warning(f"Database readiness check failed: {exc}")
+        return False
 
 
 @router.get("/live", status_code=status.HTTP_200_OK)

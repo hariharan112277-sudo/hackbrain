@@ -35,7 +35,16 @@ class AppSettings(BaseSettings):
         default="CHANGE_ME_IN_PRODUCTION_JWT_SECRET_KEY_abc123",
         description="JWT secret"
     )
+    ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, ge=1, description="Access token TTL")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, ge=1, description="Refresh token TTL")
     ALLOWED_HOSTS: list[str] = Field(default=["*"], description="CORS Allowed Hosts")
+
+    # Phase 4 Repository wiring
+    PHASE4_REPOSITORY_MODE: Literal["stub", "integration"] = Field(
+        default="stub",
+        description="Repository implementation mode for the industrial API layer"
+    )
 
     # Logging
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(

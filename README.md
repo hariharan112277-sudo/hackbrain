@@ -1,19 +1,45 @@
-# Industrial Operating Brain (IOB) - Backend Foundation (Phase 1)
+# Phase 4 Enterprise Execution Package: Industrial Operating Brain (IOB)
 
-## 1. Document Control
-- **Version:** 1.0.0-RELEASE
-- **Classification:** Enterprise Confidential
-- **Target System:** FastAPI / Python 3.11+ / AsyncIO / PostgreSQL / MQTT
+This is the complete, production-ready implementation of **Phase 4: Business Services, REST APIs, and Integration** for Member 1.
 
-## 2. Executive Purpose & Scope
-This repository establishes the immutable blueprint for the Industrial Operating Brain (IOB). By decoupling infrastructure from core application boundaries using Clean Architecture and SOLID methodologies, this foundation guarantees zero-downtime evolution, strict horizontal scaling, and eventual microservices migration readiness.
+## What is Inside
 
-## 3. Structural Integrity & Guardrails
-- **Zero Functionality Rule:** No operational routing, MQTT stream parsing, or database queries exist in this baseline.
-- **Contract Isolation:** Strict interface isolation separates Member 1 (API & Core) from Member 2 (IoT Datastores) and Member 3 (Predictive AI Models).
+- **Core FastAPI infrastructure** (`app/main.py`, `app/core/`)
+- **REST API controllers** (`app/api/`)
+  - Authentication
+  - User management
+  - Industrial data (machines, telemetry, alarms, metadata)
+  - Dashboard aggregation
+- **Business service layer** (`app/services/`)
+- **Repository interfaces & adapters** (`app/repositories/`)
+- **Pydantic schemas** (`app/schemas/`)
+- **Verification suite** (`tests/`)
+- **Documentation** (`docs/`)
+- **Audit reports** (`reports/`)
 
-## 4. Initialization Matrix
-To initialize the backend scaffolding:
-1. Review docs/configuration/folder_structure.md to map the workspace.
-2. Configure /docs/configuration/configuration_architecture.md environment baselines.
-3. Inject global exceptions through the application lifecycle framework (/docs/configuration/application_lifecycle.md).
+## How to Use This Package
+
+1. Copy the contents of this folder over your existing IOB repository root.
+2. Resolve any dependency updates from `pyproject.toml` or `requirements.txt`.
+3. Run the test suite:
+   ```bash
+   pytest tests/ -v
+   ```
+4. Start the server:
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+5. Open Swagger UI at `http://localhost:8000/api/v1/docs`.
+
+## Repository Mode
+
+- `PHASE4_REPOSITORY_MODE=stub` (default): in-memory repositories, no DB needed.
+- `PHASE4_REPOSITORY_MODE=integration`: delegates to Member 2 integration services.
+
+## Default Login
+
+| Username | Password | Roles |
+|----------|----------|-------|
+| `admin@iob.local` | `admin` | admin, operator |
+
+See `docs/` for detailed API and integration documentation.
