@@ -1,33 +1,262 @@
-[tool.poetry]
-name = "enterprise-backend-core"
-version = "1.0.0"
-description = "High-performance enterprise FastAPI core framework"
-authors = ["Enterprise Dev Team <engineering@enterprise.corp>"]
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.110.0"
-uvicorn = {extras = ["standard"], version = "^0.28.0"}
-pydantic = {extras = ["email"], version = "^2.6.4"}
-pydantic-settings = "^2.2.1"
-python-jose = {extras = ["cryptography"], version = "^3.3.0"}
-passlib = {extras = ["argon2"], version = "^1.7.4"}
-python-multipart = "^0.0.9"
-sqlalchemy = "^2.0.0"
-psycopg2-binary = "^2.9.0"
-PyYAML = "^6.0"
-paho-mqtt = "^2.0.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.1.1"
-pytest-cov = "^4.1.0"
-httpx = "^0.27.0"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iob-phase5-backend"
+version = "5.0.0"
+description = "Industrial Operating Brain - Phase 5 Backend Integration"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Proprietary"}
+authors = [
+    {name = "IOB Team - Member 1", email = "member1@iob.example.com"}
+]
+keywords = ["industrial", "iot", "fastapi", "backend", "phase5"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+]
+
+dependencies = [
+    # FastAPI & ASGI
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "gunicorn>=21.2.0",
+    
+    # Data Validation
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pydantic-extra-types>=2.4.0",
+    
+    # Database
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    
+    # Redis & Caching
+    "redis>=5.0.0",
+    
+    # Authentication & Security
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    
+    # Configuration
+    "python-dotenv>=1.0.0",
+    
+    # Logging
+    "structlog>=24.1.0",
+    
+    # HTTP Client
+    "httpx>=0.26.0",
+    
+    # Monitoring
+    "prometheus-client>=0.19.0",
+    
+    # Utilities
+    "python-dateutil>=2.8.2",
+    "email-validator>=2.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "faker>=25.0.0",
+]
+
+dev = [
+    "ruff>=0.1.0",
+    "black>=23.12.0",
+    "isort>=5.13.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+load = [
+    "locust>=2.17.0",
+]
+
+all = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "faker>=25.0.0",
+    "ruff>=0.1.0",
+    "black>=23.12.0",
+    "isort>=5.13.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "locust>=2.17.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]
-python_files = "test_*.py"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "contract: Contract tests",
+    "load: Load tests",
+    "slow: Slow running tests",
+    "security: Security tests",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "T20", # flake8-print
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # function calls in default args
+]
+per-file-ignores = {
+    "tests/*": ["S101", "S106"],  # Allow assert and hardcoded secrets in tests
+}
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = "\\.pyi?$"
+extend-exclude = """
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | htmlcov
+  | __pycache__
+)/
+"""
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+src_paths = ["app", "tests"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+show_error_codes = true
+show_error_context = true
+pretty = true
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "alembic.*",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
+    "*/conftest.py",
+]
+branch = true
+concurrency = ["thread", "asyncio"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.bandit]
+targets = ["app"]
+exclude_dirs = ["tests", "migrations"]
+skip = ["B101", "B601"]  # assert_used, shell_injection (false positives)
+
+[tool.safety]
+ignore-vulns = []
+
+[tool.pytest.mock]
+mock-module = "tests.mocks"
+
+[tool.pytest-asyncio]
+mode = "auto"
+default-fixture-loop-scope = "function"

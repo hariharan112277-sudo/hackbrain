@@ -1,60 +1,143 @@
 """
-Integrated Application Entry Point.
-
-Constructs the centralized FastAPI application with security middleware,
-global exception handling, and Phase 4 business-service routers.
+Industrial Operating Brain (IOB) - Main Application Entry Point
+Phase 5: Backend Integration, Performance & Security Optimization
 """
-from fastapi import FastAPI
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+import structlog
 
 from app.core.config import settings
-from app.core.security import SecurityHeadersMiddleware
+from app.core.logging_config import setup_logging
 from app.core.exceptions import (
-    AppBaseException,
-    custom_app_exception_handler,
-    pydantic_validation_exception_handler,
+    IOBException,
+    ResourceNotFoundError,
+    ValidationError,
+    AuthenticationError,
+    AuthorizationError,
 )
+from app.api import auth, users, industrial, dashboard
 
-# Router imports
-from app.api.auth import router as auth_router
-from app.api.users import router as users_router
-from app.api.industrial import router as industrial_router
-from app.api.dashboard import router as dashboard_router
+
+# Setup structured logging
+setup_logging()
+logger = structlog.get_logger("app.main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager for startup/shutdown events."""
+    logger.info("io_application_starting", version=settings.APP_VERSION)
+    
+    # Startup: Initialize connections, warm caches, etc.
+    logger.info("io_startup_complete")
+    
+    yield
+    
+    # Shutdown: Clean up connections, flush logs, etc.
+    logger.info("io_application_shutting_down")
 
 
 def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    
     app = FastAPI(
-        title="Industrial Operating Brain API Framework",
-        version="4.0.0",
-        openapi_url="/api/v1/openapi.json",
-        docs_url="/api/v1/docs",
-        redoc_url="/api/v1/redoc",
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        description="Industrial Operating Brain - Enterprise IoT Orchestration Platform",
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json" if settings.DEBUG else None,
+        lifespan=lifespan,
     )
 
-    # Core Security Middlewares
-    app.add_middleware(SecurityHeadersMiddleware)
+    # CORS Configuration
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_HOSTS,
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Exception Handling
-    app.add_exception_handler(AppBaseException, custom_app_exception_handler)
-    app.add_exception_handler(
-        RequestValidationError, pydantic_validation_exception_handler
-    )
+    # Global Exception Handlers
+    @app.exception_handler(IOBException)
+    async def iob_exception_handler(request: Request, exc: IOBException):
+        logger.error(
+            "iob_exception",
+            path=request.url.path,
+            error_code=exc.error_code,
+            detail=exc.detail,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": exc.error_code, "message": exc.detail, "details": exc.details},
+        )
 
-    # Mount Route Modules
-    app.include_router(auth_router, prefix="/api/v1")
-    app.include_router(users_router, prefix="/api/v1")
-    app.include_router(industrial_router, prefix="/api/v1")
-    app.include_router(dashboard_router, prefix="/api/v1")
+    @app.exception_handler(ResourceNotFoundError)
+    async def not_found_handler(request: Request, exc: ResourceNotFoundError):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "NOT_FOUND", "message": str(exc)},
+        )
 
+    @app.exception_handler(ValidationError)
+    async def validation_error_handler(request: Request, exc: ValidationError):
+        return JSONResponse(
+            status_code=422,
+            content={"error": "VALIDATION_ERROR", "message": str(exc), "details": exc.details},
+        )
+
+    @app.exception_handler(AuthenticationError)
+    async def auth_error_handler(request: Request, exc: AuthenticationError):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "UNAUTHORIZED", "message": str(exc)},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @app.exception_handler(AuthorizationError)
+    async def forbidden_handler(request: Request, exc: AuthorizationError):
+        return JSONResponse(
+            status_code=403,
+            content={"error": "FORBIDDEN", "message": str(exc)},
+        )
+
+    # Health Check Endpoint
+    @app.get("/health", tags=["Health"])
+    async def health_check():
+        return {
+            "status": "healthy",
+            "service": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+        }
+
+    @app.get("/ready", tags=["Health"])
+    async def readiness_check():
+        # Add actual readiness checks (DB, MQTT, etc.)
+        return {"status": "ready", "service": settings.APP_NAME}
+
+    # Include API Routers
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+    app.include_router(industrial.router, prefix="/api/v1/industrial", tags=["Industrial IoT"])
+    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+
+    logger.info("io_application_created", routes=len(app.routes))
     return app
 
 
 app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_config=None,  # Use structlog instead
+    )

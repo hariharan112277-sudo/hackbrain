@@ -1,45 +1,84 @@
-# Phase 4 Enterprise Execution Package: Industrial Operating Brain (IOB)
+# Phase 5 Enterprise Integration Package: Industrial Operating Brain (IOB)
 
-This is the complete, production-ready implementation of **Phase 4: Business Services, REST APIs, and Integration** for Member 1.
+This is the complete, production-grade, and unified implementation of **Phase 5: Backend Integration, Performance & Security Optimization** for Member 1. This phase establishes the central orchestration layer—connecting our core FastAPI services to Member 2's Industrial IoT and repository layers, while preparing interfaces for Member 3's AI and Member 4's frontend UI.
 
-## What is Inside
+## Directory Structure
 
-- **Core FastAPI infrastructure** (`app/main.py`, `app/core/`)
-- **REST API controllers** (`app/api/`)
-  - Authentication
-  - User management
-  - Industrial data (machines, telemetry, alarms, metadata)
-  - Dashboard aggregation
-- **Business service layer** (`app/services/`)
-- **Repository interfaces & adapters** (`app/repositories/`)
-- **Pydantic schemas** (`app/schemas/`)
-- **Verification suite** (`tests/`)
-- **Documentation** (`docs/`)
-- **Audit reports** (`reports/`)
+```
+Phase5_Backend_Integration/
+├── README.md
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── users.py
+│   │   ├── industrial.py
+│   │   └── dashboard.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── config.py
+│   │   ├── exceptions.py
+│   │   ├── logging_config.py
+│   │   └── security.py
+│   ├── repositories/
+│   │   ├── __init__.py
+│   │   └── interfaces.py
+│   ├── schemas/
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── users.py
+│   │   ├── industrial.py
+│   │   └── dashboard.py
+│   └── services/
+│       ├── __init__.py
+│       ├── auth_service.py
+│       ├── user_service.py
+│       ├── industrial_service.py
+│       └── dashboard_service.py
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_integration.py
+│   └── test_contracts.py
+├── docs/
+│   ├── backend_integration.md
+│   ├── repository_usage.md
+│   ├── api_validation.md
+│   ├── security.md
+│   ├── performance.md
+│   └── testing.md
+├── reports/
+│   ├── phase5_project_review.md
+│   ├── phase5_acceptance.md
+│   └── quality_assurance.md
+└── pyproject.toml
+```
 
-## How to Use This Package
+## Integration Instructions
 
-1. Copy the contents of this folder over your existing IOB repository root.
-2. Resolve any dependency updates from `pyproject.toml` or `requirements.txt`.
-3. Run the test suite:
-   ```bash
-   pytest tests/ -v
-   ```
-4. Start the server:
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
-5. Open Swagger UI at `http://localhost:8000/api/v1/docs`.
+1. Copy these files into your existing project workspace
+2. Merge with your existing `app/` directory structure
+3. Update your `pyproject.toml` with the new dependencies
+4. Run tests to verify integration: `pytest tests/ -v`
+5. Compress locally using: `zip -r Phase5_Backend_Integration_Enterprise_Package.zip Phase5_Backend_Integration/`
 
-## Repository Mode
+## Key Integration Points
 
-- `PHASE4_REPOSITORY_MODE=stub` (default): in-memory repositories, no DB needed.
-- `PHASE4_REPOSITORY_MODE=integration`: delegates to Member 2 integration services.
+- **Member 2 (IoT & Database)**: Consumes `IMachineRepository`, `ITelemetryRepository`, `IAlarmRepository`, `IMetadataRepository` interfaces
+- **Member 3 (AI Subsystem)**: Standardized endpoints with stubs for anomaly status and RUL predictions
+- **Member 4 (Frontend/UI)**: Strict JSON output structures mapped to Pydantic schemas
 
-## Default Login
+## Quick Start
 
-| Username | Password | Roles |
-|----------|----------|-------|
-| `admin@iob.local` | `admin` | admin, operator |
+```bash
+# Install dependencies
+pip install -e .
 
-See `docs/` for detailed API and integration documentation.
+# Run the application
+uvicorn app.main:app --reload
+
+# Run tests
+pytest tests/ -v --cov=app
+```

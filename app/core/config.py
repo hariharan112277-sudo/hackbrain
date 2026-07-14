@@ -1,94 +1,112 @@
 """
-Enterprise Application Settings utilizing Pydantic Settings v2.
-
-This module provides centralized, type-safe configuration management across
-all deployment environments (local, development, staging, production).
-It extends the existing integration-layer settings with application-level
-concerns such as security, logging, and CORS.
+Application Configuration Management
+Phase 5: Centralized configuration with environment-based settings.
 """
-import os
-from typing import Literal
+
+from functools import lru_cache
+from typing import List, Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class AppSettings(BaseSettings):
-    """Enterprise Application Settings utilizing Pydantic Settings v2."""
-
-    # Project Identity
-    PROJECT_NAME: str = Field(
-        default="Enterprise Backend Core",
-        description="Name of the service"
-    )
-    VERSION: str = Field(default="1.0.0", description="SemVer version of the application")
-    API_PREFIX: str = "/api/v1"
-
-    # Environment Strategy
-    ENVIRONMENT: Literal["local", "development", "staging", "production"] = Field(
-        default="local",
-        description="Deployment target environment"
-    )
-    DEBUG: bool = Field(default=False, description="Global debug flag")
-
-    # Security
-    SECRET_KEY: str = Field(
-        default="CHANGE_ME_IN_PRODUCTION_JWT_SECRET_KEY_abc123",
-        description="JWT secret"
-    )
-    ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, ge=1, description="Access token TTL")
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, ge=1, description="Refresh token TTL")
-    ALLOWED_HOSTS: list[str] = Field(default=["*"], description="CORS Allowed Hosts")
-
-    # Phase 4 Repository wiring
-    PHASE4_REPOSITORY_MODE: Literal["stub", "integration"] = Field(
-        default="stub",
-        description="Repository implementation mode for the industrial API layer"
-    )
-
-    # Logging
-    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="INFO",
-        description="Structured logger severity threshold"
-    )
-    JSON_LOGS: bool = Field(
-        default=True,
-        description="Whether to output structured JSON logs instead of human-readable text"
-    )
-
-    # --- Integration-layer settings (mirrors integration.config.IntegrationSettings) ---
-    IOB_MQTT_URL: str = Field(
-        default="mqtt://localhost:1883",
-        description="MQTT broker URL for IOB integration layer"
-    )
-    IOB_TOPIC_PREFIX: str = Field(
-        default="industrial/iob",
-        description="MQTT topic prefix for IOB telemetry"
-    )
-    DEFAULT_PAGE_LIMIT: int = Field(default=100, ge=1, le=1000)
-    MAX_HISTORICAL_WINDOW_DAYS: int = Field(default=30, gt=0)
-    ENABLE_REALTIME_STREAMING: bool = True
-    ENFORCE_OPC_QUALITY_CHECKS: bool = True
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"
+        extra="ignore",
     )
 
-    @field_validator("SECRET_KEY", mode="after")
+    # Application
+    APP_NAME: str = "Industrial Operating Brain"
+    APP_VERSION: str = "5.0.0"
+    DEBUG: bool = False
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+
+    # Security
+    SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    PASSWORD_MIN_LENGTH: int = 12
+    BCRYPT_ROUNDS: int = 12
+
+    # CORS
+    CORS_ORIGINS: List[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8080"],
+        description="Allowed CORS origins",
+    )
+
+    # Database (Member 2 Integration)
+    DATABASE_URL: str = Field(..., description="PostgreSQL connection string")
+    DATABASE_POOL_SIZE: int = 20
+    DATABASE_MAX_OVERFLOW: int = 10
+    DATABASE_POOL_TIMEOUT: int = 30
+
+    # Redis (Caching & Sessions)
+    REDIS_URL: str = Field(default="redis://localhost:6379/0")
+    REDIS_MAX_CONNECTIONS: int = 50
+    REDIS_SOCKET_TIMEOUT: int = 5
+
+    # MQTT (Member 2 IoT Integration)
+    MQTT_BROKER_HOST: str = "localhost"
+    MQTT_BROKER_PORT: int = 1883
+    MQTT_USERNAME: Optional[str] = None
+    MQTT_PASSWORD: Optional[str] = None
+    MQTT_CLIENT_ID: str = "iob-backend"
+    MQTT_KEEPALIVE: int = 60
+    MQTT_TLS_ENABLED: bool = False
+
+    # Member 3 AI Service
+    AI_SERVICE_URL: str = "http://localhost:8001"
+    AI_SERVICE_TIMEOUT: int = 30
+    AI_ANOMALY_ENDPOINT: str = "/predict/anomaly"
+    AI_RUL_ENDPOINT: str = "/predict/rul"
+    AI_HEALTH_ENDPOINT: str = "/health"
+
+    # Member 4 Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # Rate Limiting
+    RATE_LIMIT_REQUESTS: int = 100
+    RATE_LIMIT_WINDOW: int = 60
+
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
+    LOG_FILE: Optional[str] = None
+
+    # Monitoring
+    ENABLE_METRICS: bool = True
+    METRICS_PORT: int = 9090
+
+    # Feature Flags
+    ENABLE_AI_INTEGRATION: bool = True
+    ENABLE_REALTIME_TELEMETRY: bool = True
+    ENABLE_ALARM_NOTIFICATIONS: bool = True
+
+    @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def enforce_production_secrets(cls, value: str, info) -> str:
-        """Prevent weak secret keys in staging/production environments."""
-        env = os.getenv("ENVIRONMENT", "local")
-        if env in ("staging", "production") and ("CHANGE_ME" in value or len(value) < 32):
-            raise ValueError(
-                f"Insecure SECRET_KEY configured for high-severity environment: '{env}'. "
-                "Must be a unique cryptographically secure string of at least 32 characters."
-            )
-        return value
+    def parse_cors_origins(cls, v: str | List[str]) -> List[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        if len(v) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters")
+        return v
 
 
-# Singleton instance — import this throughout the application
-settings = AppSettings()
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    return Settings()
+
+
+settings = get_settings()

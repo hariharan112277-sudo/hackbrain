@@ -1,42 +1,86 @@
 """
-Pydantic schema package for Phase 4 REST APIs.
-
-Provides strongly-typed request / response models for:
-- Authentication (auth)
-- User management (users)
-- Industrial data (machines, telemetry, alarms, metadata)
-- Dashboard aggregation
-
-All response envelopes follow the standard `{success, data, error, meta}` shape.
+Pydantic Schemas for API Contracts
+Phase 5: Strict JSON output structures for Member 4 Frontend integration.
 """
-from typing import Any, Dict, Generic, Optional, TypeVar
-from pydantic import BaseModel, ConfigDict
 
-T = TypeVar("T")
-
-
-class StandardResponse(BaseModel, Generic[T]):
-    """Uniform API response envelope used across all Phase 4 endpoints."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    success: bool = True
-    data: Optional[T] = None
-    error: Optional[str] = None
-    message: Optional[str] = None
-    meta: Optional[Dict[str, Any]] = None
-
-
-class PaginationMeta(BaseModel):
-    """Pagination metadata attached to list responses."""
-
-    page: int = 1
-    page_size: int = 100
-    total: Optional[int] = None
-    next_cursor: Optional[str] = None
-
+from app.schemas.auth import (
+    Token,
+    TokenData,
+    LoginRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+    PasswordChangeRequest,
+)
+from app.schemas.users import (
+    UserResponse,
+    UserCreate,
+    UserUpdate,
+    UserListResponse,
+    RoleResponse,
+    PermissionResponse,
+)
+from app.schemas.industrial import (
+    MachineResponse,
+    MachineCreate,
+    MachineUpdate,
+    MachineListResponse,
+    TelemetryResponse,
+    TelemetryHistoryRequest,
+    TelemetryStatisticsResponse,
+    AlarmResponse,
+    AlarmAcknowledgeRequest,
+    AlarmResolveRequest,
+    AlarmListResponse,
+    AlarmStatisticsResponse,
+    MachineMetadataResponse,
+    SensorDefinition,
+    ThresholdConfig,
+)
+from app.schemas.dashboard import (
+    DashboardOverviewResponse,
+    MachineStatusSummary,
+    TelemetryWidgetData,
+    AlarmWidgetData,
+    KPIWidgetData,
+    TrendWidgetData,
+)
 
 __all__ = [
-    "StandardResponse",
-    "PaginationMeta",
+    # Auth
+    "Token",
+    "TokenData",
+    "LoginRequest",
+    "RefreshTokenRequest",
+    "RegisterRequest",
+    "PasswordChangeRequest",
+    # Users
+    "UserResponse",
+    "UserCreate",
+    "UserUpdate",
+    "UserListResponse",
+    "RoleResponse",
+    "PermissionResponse",
+    # Industrial
+    "MachineResponse",
+    "MachineCreate",
+    "MachineUpdate",
+    "MachineListResponse",
+    "TelemetryResponse",
+    "TelemetryHistoryRequest",
+    "TelemetryStatisticsResponse",
+    "AlarmResponse",
+    "AlarmAcknowledgeRequest",
+    "AlarmResolveRequest",
+    "AlarmListResponse",
+    "AlarmStatisticsResponse",
+    "MachineMetadataResponse",
+    "SensorDefinition",
+    "ThresholdConfig",
+    # Dashboard
+    "DashboardOverviewResponse",
+    "MachineStatusSummary",
+    "TelemetryWidgetData",
+    "AlarmWidgetData",
+    "KPIWidgetData",
+    "TrendWidgetData",
 ]

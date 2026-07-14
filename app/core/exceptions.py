@@ -1,216 +1,161 @@
 """
-Custom Global Exception Handling Module.
-
-Defines clean domain/application-level errors and global handlers to convert
-them into uniform, sanitized JSON schemas. This module provides:
-
-Domain Exceptions:
-- AppBaseException: Base class for all domain-specific application exceptions
-- AuthenticationError: Raised when authentication fails (401)
-- ResourceNotFoundError: Raised when a requested resource is missing (404)
-
-Exception Handlers:
-- custom_app_exception_handler: Handles AppBaseException subclasses
-- iob_integration_exception_handler: Handles IOB integration domain exceptions
-- pydantic_validation_exception_handler: Sanitizes Pydantic parsing errors
-- global_starlette_exception_handler: Catches Starlette HTTPExceptions
-- default_unhandled_exception_handler: Ultimate safety net for 500 errors
-
-All error responses follow a consistent JSON schema:
-{
-    "success": false,
-    "error": "<ExceptionClassName>",
-    "message": "<human-readable message>",
-    "details": <structured details or null>
-}
+Custom Exception Hierarchy for IOB Platform
+Phase 5: Structured error handling with error codes and details.
 """
-from typing import Any, Dict
-from fastapi import Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from typing import Any, Dict, Optional
 
 
-# =============================================================================
-# Domain Exception Classes
-# =============================================================================
+class IOBException(Exception):
+    """Base exception for all IOB application errors."""
 
-class AppBaseException(Exception):
-    """Base class for all domain-specific application exceptions."""
-
-    def __init__(self, message: str, status_code: int = 400, details: Any = None):
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "INTERNAL_ERROR",
+        status_code: int = 500,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         self.message = message
+        self.error_code = error_code
         self.status_code = status_code
         self.details = details or {}
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        return f"[{self.error_code}] {self.message}"
 
 
-class AuthenticationError(AppBaseException):
+class ResourceNotFoundError(IOBException):
+    """Raised when a requested resource is not found."""
+
+    def __init__(
+        self,
+        resource_type: str,
+        resource_id: str,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        message = f"{resource_type} with ID '{resource_id}' not found"
+        super().__init__(
+            message=message,
+            error_code="NOT_FOUND",
+            status_code=404,
+            details={**details, "resource_type": resource_type, "resource_id": resource_id},
+        )
+        self.resource_type = resource_type
+        self.resource_id = resource_id
+
+
+class ValidationError(IOBException):
+    """Raised when input validation fails."""
+
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code="VALIDATION_ERROR",
+            status_code=422,
+            details=details or {},
+        )
+
+
+class AuthenticationError(IOBException):
     """Raised when authentication fails."""
 
     def __init__(
         self,
-        message: str = "Invalid credentials or missing token",
-        details: Any = None,
+        message: str = "Authentication required",
+        details: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(message=message, status_code=401, details=details)
-
-
-class ResourceNotFoundError(AppBaseException):
-    """Raised when a requested resource is missing."""
-
-    def __init__(self, resource: str, identifier: Any):
         super().__init__(
-            message=f"Resource '{resource}' matching identifier '{identifier}' was not found.",
-            status_code=404,
+            message=message,
+            error_code="UNAUTHORIZED",
+            status_code=401,
+            details=details or {},
         )
 
 
-# =============================================================================
-# Global Exception Handlers
-# =============================================================================
+class AuthorizationError(IOBException):
+    """Raised when authorization fails."""
 
-async def custom_app_exception_handler(
-    request: Request, exc: AppBaseException
-) -> JSONResponse:
-    """Handles custom domain-level exceptions."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": exc.__class__.__name__,
-            "message": exc.message,
-            "details": exc.details,
-        },
-    )
-
-
-async def pydantic_validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
-    """Sanitizes Pydantic parsing errors into a clean, uniform list."""
-    errors = []
-    for error in exc.errors():
-        # Clean up locations (e.g. ['body', 'username'] -> 'username')
-        loc = " -> ".join([str(x) for x in error["loc"]])
-        errors.append(
-            {
-                "field": loc,
-                "issue": error["msg"],
-                "type": error["type"],
-            }
+    def __init__(
+        self,
+        message: str = "Insufficient permissions",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code="FORBIDDEN",
+            status_code=403,
+            details=details or {},
         )
 
-    return JSONResponse(
-        status_code=422,
-        content={
-            "success": False,
-            "error": "ValidationError",
-            "message": "Input payload schema validation failed.",
-            "details": errors,
-        },
-    )
+
+class RateLimitError(IOBException):
+    """Raised when rate limit is exceeded."""
+
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded",
+        retry_after: int = 60,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code="RATE_LIMIT_EXCEEDED",
+            status_code=429,
+            details={**details, "retry_after": retry_after},
+        )
 
 
-async def global_starlette_exception_handler(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
-    """Catches direct HTTPExceptions raised by FastAPI or Starlette internals."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": "HTTPException",
-            "message": exc.detail,
-            "details": None,
-        },
-    )
+class ExternalServiceError(IOBException):
+    """Raised when an external service call fails."""
+
+    def __init__(
+        self,
+        service: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=f"External service '{service}' error: {message}",
+            error_code="EXTERNAL_SERVICE_ERROR",
+            status_code=502,
+            details={**details, "service": service},
+        )
 
 
-async def default_unhandled_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
-    """
-    Ultimate safety net catching raw unhandled system faults.
-    Prevents stack trace leakage to clients in production.
-    """
-    # Note: Logged automatically by our CorrelationAndLoggingMiddleware
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "error": "InternalServerError",
-            "message": "An unexpected server error occurred. Please contact system support.",
-            "details": None,
-        },
-    )
+class ConfigurationError(IOBException):
+    """Raised when configuration is invalid."""
+
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code="CONFIGURATION_ERROR",
+            status_code=500,
+            details=details or {},
+        )
 
 
-# =============================================================================
-# IOB Integration Exception Handler (bridges integration.exceptions)
-# =============================================================================
+class RepositoryError(IOBException):
+    """Raised when repository operations fail."""
 
-async def iob_integration_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
-    """
-    Handles IOB integration domain exceptions from integration.exceptions.
-    Maps integration-layer exceptions to appropriate HTTP status codes
-    while maintaining the uniform JSON error schema.
-    """
-    # Map integration exceptions to status codes
-    status_map = {
-        "ResourceNotFoundError": 404,
-        "InvalidQueryCriteriaException": 422,
-        "ConfigurationValidationException": 500,
-        "MQTTTransportException": 503,
-        "DatabaseUnavailableException": 503,
-    }
-
-    exc_type = exc.__class__.__name__
-    status_code = status_map.get(exc_type, 500)
-
-    # Extract message and details if available
-    message = getattr(exc, "message", str(exc))
-    details = getattr(exc, "details", None)
-
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "success": False,
-            "error": exc_type,
-            "message": message,
-            "details": details,
-        },
-    )
-
-
-# =============================================================================
-# Registration Helper
-# =============================================================================
-
-def register_exception_handlers(app) -> None:
-    """
-    Register all exception handlers on the FastAPI application.
-
-    This is a convenience function that registers all handlers at once.
-    Call this during application factory setup.
-
-    Args:
-        app: The FastAPI application instance.
-    """
-    # Import IOB integration exception base class
-    from integration.exceptions import IOBIntegrationException
-
-    app.add_exception_handler(AppBaseException, custom_app_exception_handler)
-    app.add_exception_handler(
-        IOBIntegrationException, iob_integration_exception_handler
-    )
-    app.add_exception_handler(
-        RequestValidationError, pydantic_validation_exception_handler
-    )
-    app.add_exception_handler(
-        StarletteHTTPException, global_starlette_exception_handler
-    )
-    app.add_exception_handler(Exception, default_unhandled_exception_handler)
+    def __init__(
+        self,
+        operation: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=f"Repository operation '{operation}' failed: {message}",
+            error_code="REPOSITORY_ERROR",
+            status_code=500,
+            details={**details, "operation": operation},
+        )
