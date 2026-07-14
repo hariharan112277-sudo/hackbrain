@@ -8,11 +8,27 @@ paho-mqtt>=2.0.0
 # Pydantic for strict schema validation (v1 or v2 compatible)
 pydantic>=1.10,<3.0
 
+# Pydantic Settings v2 for enterprise configuration management
+pydantic-settings>=2.0.0
+
 # PostgreSQL driver (sync)
 psycopg2-binary>=2.9.0
 
 # YAML configuration
 PyYAML>=6.0
+
+# FastAPI & ASGI server (Phase 3 Core Foundation)
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+starlette>=0.27.0
+
+# --- Security Dependencies (Phase 3) ---
+# JWT encoding/decoding
+python-jose[cryptography]>=3.3.0
+# Password hashing (Argon2 + Bcrypt)
+passlib[argon2]>=1.7.4
+argon2-cffi>=21.3.0
+bcrypt>=4.0.0
 
 # Tests
 pytest>=7.0

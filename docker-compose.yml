@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  api_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=local
+      - LOG_LEVEL=DEBUG
+      - JSON_LOGS=false
+      - SECRET_KEY=DEVELOPMENT_ONLY_SECRET_PLEASE_REPLACE_IN_PRODUCTION
+    volumes:
+      - .:/app

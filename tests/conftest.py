@@ -1,11 +1,13 @@
-"""
-Pytest bootstrap: make the flat ``simulator/`` modules importable as top-level
-modules (``from generator import ...``) without installing the package.
-"""
+import pytest
+from typing import Generator
+from fastapi.testclient import TestClient
 
-import sys
-from pathlib import Path
+from app.main import create_app
 
-SIMULATOR_DIR = str(Path(__file__).resolve().parent.parent / "simulator")
-if SIMULATOR_DIR not in sys.path:
-    sys.path.insert(0, SIMULATOR_DIR)
+
+@pytest.fixture(scope="module")
+def client() -> Generator[TestClient, None, None]:
+    """Initializes a clean, test-configured app instance."""
+    app = create_app()
+    with TestClient(app) as test_client:
+        yield test_client
