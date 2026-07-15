@@ -43,6 +43,20 @@ class UserSchema(UserBase):
 
 
 # --------------------------------------------------------------------------- #
+# auth (Stage 2 — Authentication request DTOs)
+# --------------------------------------------------------------------------- #
+class LoginRequest(BaseModel):
+    """POST /api/v1/auth/login body."""
+    email: str = Field(..., max_length=120)
+    password: str = Field(..., min_length=1)
+
+
+class RefreshRequest(BaseModel):
+    """POST /api/v1/auth/refresh body."""
+    refresh_token: str = Field(..., min_length=1)
+
+
+# --------------------------------------------------------------------------- #
 # assets
 # --------------------------------------------------------------------------- #
 class AssetBase(BaseModel):
@@ -178,6 +192,7 @@ class AlarmSchema(AlarmBase):
 
 __all__ = [
     "UserBase", "UserCreate", "UserSchema",
+    "LoginRequest", "RefreshRequest",
     "AssetBase", "AssetCreate", "AssetSchema",
     "SensorBase", "SensorCreate", "SensorSchema",
     "TelemetryBase", "TelemetryCreate", "TelemetrySchema",
