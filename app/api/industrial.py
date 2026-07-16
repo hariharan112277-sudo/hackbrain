@@ -3,7 +3,7 @@ Industrial IoT API Routes
 Phase 5: Machine, telemetry, alarm, and metadata endpoints for Member 2 & 4 integration.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from uuid import UUID
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query, status, HTTPException
