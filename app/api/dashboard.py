@@ -1,128 +1,91 @@
-"""
-Dashboard API Routes
-Phase 5: Aggregated data endpoints for Member 4 Frontend UI components.
-"""
+"""Central health KPI endpoint — Track A (Hariharan), Stage 3."""
 
-from typing import Optional
-from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
+from sqlalchemy import desc, func
+from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user, require_permissions
-from app.schemas.dashboard import (
-    DashboardOverviewResponse,
-    DashboardFilterRequest,
-    RealtimeTelemetrySubscription,
-    RealtimeTelemetryMessage,
-)
-from app.services.dashboard_service import DashboardService
-from app.core.dependencies import get_dashboard_service
+from app.database import get_db
+from app.deps import UserContext, get_current_user
+from app.models.alarm import Alarm
+from app.models.asset import Asset, Telemetry
 
 router = APIRouter()
 
 
-@router.get("/overview", response_model=DashboardOverviewResponse, summary="Get dashboard overview")
-async def get_dashboard_overview(
-    machine_ids: Optional[list[UUID]] = Query(None, description="Filter by machine IDs"),
-    site_ids: Optional[list[str]] = Query(None, description="Filter by site IDs"),
-    time_range: str = Query("24h", description="Time range (1h, 6h, 24h, 7d, 30d)"),
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
+@router.get("/summary")
+def get_dashboard_summary(
+    user: UserContext = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Get complete dashboard overview with all widgets."""
-    filters = DashboardFilterRequest(
-        machine_ids=machine_ids,
-        site_ids=site_ids,
-        time_range=time_range,
+    """
+    Compute aggregate system KPIs and latest machine-state allocations.
+
+    Health formula: max(0, 100 - (10 * critical_open) - (3 * warning_open)).
+    """
+    total_assets = db.query(func.count(Asset.asset_id)).scalar() or 0
+
+    critical_open = (
+        db.query(func.count(Alarm.alarm_id))
+        .filter(Alarm.severity == "critical", Alarm.resolved.is_(False))
+        .scalar()
+        or 0
     )
-    return await dashboard_service.get_overview(filters)
+    warning_open = (
+        db.query(func.count(Alarm.alarm_id))
+        .filter(Alarm.severity == "warning", Alarm.resolved.is_(False))
+        .scalar()
+        or 0
+    )
 
+    health_score = max(0, 100 - (10 * critical_open) - (3 * warning_open))
 
-@router.get("/machines/{machine_id}/detail", summary="Get machine detail dashboard")
-async def get_machine_detail_dashboard(
-    machine_id: UUID,
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
-):
-    """Get detailed dashboard for a single machine."""
-    return await dashboard_service.get_machine_detail_dashboard(machine_id)
+    recent_alarms = db.query(Alarm).order_by(desc(Alarm.ts), desc(Alarm.alarm_id)).limit(5).all()
 
+    # Rank by timestamp and then primary key so duplicate timestamps still
+    # produce exactly one latest telemetry row per asset.
+    latest_telemetry = db.query(
+        Telemetry.asset_id.label("asset_id"),
+        Telemetry.status.label("status"),
+        func.row_number()
+        .over(
+            partition_by=Telemetry.asset_id,
+            order_by=(Telemetry.ts.desc(), Telemetry.id.desc()),
+        )
+        .label("row_number"),
+    ).subquery()
 
-@router.get("/kpis", summary="Get KPI widgets only")
-async def get_kpi_widgets(
-    machine_ids: Optional[list[UUID]] = Query(None),
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
-):
-    """Get KPI widgets for dashboard."""
-    from app.schemas.dashboard import DashboardFilterRequest
-    filters = DashboardFilterRequest(machine_ids=machine_ids)
-    overview = await dashboard_service.get_overview(filters)
-    return {"kpis": overview.kpi_widgets}
+    status_counts = (
+        db.query(latest_telemetry.c.status, func.count(Asset.asset_id))
+        .select_from(Asset)
+        .outerjoin(
+            latest_telemetry,
+            (Asset.asset_id == latest_telemetry.c.asset_id) & (latest_telemetry.c.row_number == 1),
+        )
+        .group_by(latest_telemetry.c.status)
+        .all()
+    )
 
+    machine_status = {}
+    for telemetry_status, count in status_counts:
+        status_key = telemetry_status or "unknown"
+        machine_status[status_key] = machine_status.get(status_key, 0) + count
 
-@router.get("/alarms/summary", summary="Get alarm summary widget")
-async def get_alarm_summary(
-    machine_ids: Optional[list[UUID]] = Query(None),
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
-):
-    """Get alarm summary widget data."""
-    from app.schemas.dashboard import DashboardFilterRequest
-    filters = DashboardFilterRequest(machine_ids=machine_ids)
-    overview = await dashboard_service.get_overview(filters)
-    return {"alarms": overview.alarm_widget}
-
-
-@router.get("/telemetry/widgets", summary="Get telemetry widgets")
-async def get_telemetry_widgets(
-    machine_ids: Optional[list[UUID]] = Query(None),
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
-):
-    """Get telemetry widget data."""
-    from app.schemas.dashboard import DashboardFilterRequest
-    filters = DashboardFilterRequest(machine_ids=machine_ids)
-    overview = await dashboard_service.get_overview(filters)
-    return {"telemetry": overview.telemetry_widgets}
-
-
-@router.get("/trends", summary="Get trend widgets")
-async def get_trend_widgets(
-    machine_ids: Optional[list[UUID]] = Query(None),
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
-):
-    """Get trend widget data."""
-    from app.schemas.dashboard import DashboardFilterRequest
-    filters = DashboardFilterRequest(machine_ids=machine_ids)
-    overview = await dashboard_service.get_overview(filters)
-    return {"trends": overview.trend_widgets}
-
-
-@router.get("/machine-status", summary="Get machine status summary")
-async def get_machine_status(
-    machine_ids: Optional[list[UUID]] = Query(None),
-    current_user: dict = Depends(require_permissions("dashboard:read")),
-    dashboard_service: DashboardService = Depends(get_dashboard_service),
-):
-    """Get machine status summary."""
-    from app.schemas.dashboard import DashboardFilterRequest
-    filters = DashboardFilterRequest(machine_ids=machine_ids)
-    overview = await dashboard_service.get_overview(filters)
-    return {"status": overview.machine_status}
-
-
-# WebSocket endpoint for real-time telemetry (placeholder)
-@router.websocket("/ws/telemetry")
-async def websocket_telemetry(websocket, token: str = Query(...)):
-    """
-    WebSocket endpoint for real-time telemetry streaming.
-    Phase 5: Placeholder - requires WebSocket implementation.
-    """
-    # TODO: Implement WebSocket authentication and real-time streaming
-    await websocket.accept()
-    await websocket.send_json({
-        "type": "info",
-        "message": "WebSocket endpoint not fully implemented in Phase 5",
-    })
-    await websocket.close()
+    return {
+        "kpis": {
+            "total_assets": total_assets,
+            "open_critical_alarms": critical_open,
+            "open_warning_alarms": warning_open,
+        },
+        "health_score": health_score,
+        "machine_status": machine_status,
+        "recent_alerts": [
+            {
+                "alarm_id": alarm.alarm_id,
+                "asset_id": alarm.asset_id,
+                "severity": alarm.severity,
+                "message": alarm.message,
+                "ts": alarm.ts.isoformat(),
+            }
+            for alarm in recent_alarms
+        ],
+    }
