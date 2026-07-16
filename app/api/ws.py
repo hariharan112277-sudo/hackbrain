@@ -26,7 +26,6 @@ async def websocket_telemetry_endpoint(
     websocket: WebSocket,
     token: str = Query(...)
 ):
-    # 1. Enforce strict authentication via Hariharan's decode_token
     try:
         user = decode_token(token)
         if not user:
@@ -37,21 +36,19 @@ async def websocket_telemetry_endpoint(
         await websocket.close(code=4001, reason="Authentication execution failed")
         return
 
-    # 2. Connection Accepted upon verification
     await manager.connect(websocket)
     logger.info(f"Secure client channel initialized. Active connections: {len(manager.active_connections)}")
 
     try:
         while True:
-            # Continuously exhaust the data broker queue to the client stream
             if not sensor_queue.empty():
                 message = await sensor_queue.get()
                 await websocket.send_json(message)
                 sensor_queue.task_done()
-            
-            # Explicit interval padding to prevent event loop block starvation
             await asyncio.sleep(0.1)
 
     except WebSocketDisconnect:
+        logger.info("Client disconnected safely.")
+    finally:
         manager.disconnect(websocket)
-        logger.info(f"Client disconnected safely. Active connections: {len(manager.active_connections)}")
+        logger.info(f"Client connection closed. Active connections: {len(manager.active_connections)}")
