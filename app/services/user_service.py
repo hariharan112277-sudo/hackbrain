@@ -13,6 +13,7 @@ from app.core.exceptions import (
     ResourceNotFoundError,
     ValidationError,
 )
+from app.core.security import hash_password
 from app.schemas.users import (
     UserResponse,
     UserCreate,
@@ -91,13 +92,11 @@ class UserService:
                 if not role:
                     raise ValidationError(f"Role '{role_name}' does not exist")
         
-        from app.core.security import get_password_hash
-        
         create_data = {
             "id": UUID(int=0),  # Will be set by repo
             "email": user_data.email,
             "full_name": user_data.full_name,
-            "password_hash": get_password_hash(user_data.password),
+            "password_hash": hash_password(user_data.password),
             "is_active": user_data.is_active,
             "roles": user_data.roles,
             "permissions": [],

@@ -13,7 +13,7 @@ cp -R track_a_stage2_authentication/* .
 
 | Path | Action |
 |------|--------|
-| `app/core/security.py` | EDIT — bcrypt + JWT (Stage-2 + Phase-5 dual API) |
+| `app/core/security.py` | EDIT — bcrypt + JWT (Stage-2 + Stage 5 dual API) |
 | `app/api/auth.py` | EDIT — `/login`, `/refresh`, `/me` |
 | `app/core/errors.py` | NEW — `error_envelope` |
 | `app/core/__init__.py` | EDIT — exports |

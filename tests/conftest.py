@@ -9,17 +9,30 @@ from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, MagicMock
 
 from app.main import create_app
-from app.core.dependencies import initialize_stub_repositories
+from app.core.dependencies import initialize_stub_repositories, reset_repository_subsystem
 from app.core.config import settings
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_env():
     """Setup test environment."""
+    original_values = {
+        "DEBUG": settings.DEBUG,
+        "SECRET_KEY": settings.SECRET_KEY,
+        "ENV": settings.ENV,
+        "ENVIRONMENT": settings.ENVIRONMENT,
+        "USE_STUB_REPOSITORIES": settings.USE_STUB_REPOSITORIES,
+    }
     settings.DEBUG = True
     settings.SECRET_KEY = "test-secret-key-for-testing-only-32-chars-minimum"
+    settings.ENV = "test"
+    settings.ENVIRONMENT = "test"
+    settings.USE_STUB_REPOSITORIES = True
     initialize_stub_repositories()
     yield
+    reset_repository_subsystem()
+    for name, value in original_values.items():
+        setattr(settings, name, value)
 
 
 @pytest.fixture(scope="function")
