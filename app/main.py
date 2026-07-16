@@ -10,7 +10,12 @@ from fastapi.responses import JSONResponse
 import structlog
 
 from app.core.config import settings
+from app.core.dependencies import (
+    bootstrap_repository_subsystem,
+    shutdown_repository_subsystem,
+)
 from app.core.logging_config import setup_logging
+from app.core.security import SecurityHeadersMiddleware
 from app.core.exceptions import (
     IOBException,
     ResourceNotFoundError,
@@ -31,13 +36,22 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
     logger.info("io_application_starting", version=settings.APP_VERSION)
     
-    # Startup: Initialize connections, warm caches, etc.
-    logger.info("io_startup_complete")
-    
-    yield
-    
-    # Shutdown: Clean up connections, flush logs, etc.
-    logger.info("io_application_shutting_down")
+    # Resolve the repository strategy before accepting any request. This is the
+    # final runtime boundary that prevents development providers from reaching
+    # a production process.
+    bootstrap_repository_subsystem()
+    logger.info(
+        "io_startup_complete",
+        repository_strategy=(
+            "stub" if settings.USE_STUB_REPOSITORIES else "production"
+        ),
+    )
+
+    try:
+        yield
+    finally:
+        shutdown_repository_subsystem()
+        logger.info("io_application_shutting_down")
 
 
 def create_app() -> FastAPI:
@@ -53,7 +67,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS Configuration
+    # Browser and CORS security boundaries.
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,

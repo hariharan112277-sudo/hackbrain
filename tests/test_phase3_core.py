@@ -67,6 +67,11 @@ class TestAppSettings:
         from app.core.config import AppSettings
         monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.setenv("SECRET_KEY", "a" * 32 + "_strong_secret_key_here_1234567890")
+        monkeypatch.setenv("MQTT_PASSWORD", "production-mqtt-password")
+        monkeypatch.setenv(
+            "DATABASE_URL",
+            "postgresql+psycopg2://iob:strong-password@db.example/iob",
+        )
 
         settings = AppSettings()
         assert len(settings.SECRET_KEY) >= 32

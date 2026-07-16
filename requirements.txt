@@ -31,7 +31,8 @@ python-jose[cryptography]>=3.3.0
 # Password hashing (Argon2 + Bcrypt)
 passlib[argon2]>=1.7.4
 argon2-cffi>=21.3.0
-bcrypt>=4.0.0
+# passlib 1.7.x is incompatible with bcrypt 4.1+ backend detection.
+bcrypt>=4.0.0,<4.1.0
 
 # Tests
 pytest>=7.0

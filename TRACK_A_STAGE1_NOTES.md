@@ -43,7 +43,7 @@ track_a_stage1_database_layer/
    `app/database.py`, but the repo's canonical settings live in `app.core.config`
    (with `DATABASE_URL` already defined and required). The shim re-exports that **same
    cached `Settings` object**, so the spec file stays byte-verbatim AND the existing
-   Phase-5 wiring (`app/main.py`, `app/core/*`) keeps working unchanged. One source
+   Stage 5 wiring (`app/main.py`, `app/core/*`) keeps working unchanged. One source
    of truth — no duplicated config.
 2. **`app/models/__init__.py`:** imports every model so all tables register on
    `Base.metadata` and every `relationship("...")`/back_populates pair resolves
@@ -86,7 +86,7 @@ It does **not** affect Track A — `app.database`, `app.models`, `app.deps` and 
 Checkpoint 1 command run without importing `app.schemas`.
 
 *(Also noted for the team's requirements owner: `structlog` and `PyJWT` are imported
-by existing Phase-5 code but absent from `requirements.txt` — pre-existing gaps.)*
+by existing Stage 5 code but absent from `requirements.txt` — pre-existing gaps.)*
 
 ## 6. Running Checkpoint 1 on your machine (live Postgres)
 

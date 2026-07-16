@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    hash_password,
     verify_password,
-    get_password_hash,
 )
 from app.core.exceptions import (
     AuthenticationError,
@@ -83,7 +83,7 @@ class AuthService:
             raise ValidationError("Email already registered", details={"email": register_data.email})
         
         # Hash password
-        password_hash = get_password_hash(register_data.password)
+        password_hash = hash_password(register_data.password)
         
         # Create user
         user_data = {
@@ -167,7 +167,7 @@ class AuthService:
         if not verify_password(current_password, user["password_hash"]):
             raise AuthenticationError("Current password is incorrect")
         
-        new_hash = get_password_hash(new_password)
+        new_hash = hash_password(new_password)
         await self.user_repo.update_password(user_id, new_hash)
         
         logger.info("auth_password_changed", user_id=str(user_id))

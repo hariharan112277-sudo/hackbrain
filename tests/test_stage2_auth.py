@@ -6,7 +6,7 @@ Covers Checkpoint 2 without requiring a live PostgreSQL instance:
   * access + refresh JWT lifecycle
   * decode_token success + 401 failure paths
   * /login, /refresh, /me endpoint behaviour via FastAPI TestClient
-  * backward-compat surface for Phase-5 / Stage-0 callers
+  * backward-compat surface for Stage 5 / Stage-0 callers
 """
 
 from __future__ import annotations
@@ -56,9 +56,9 @@ class TestPasswordHashing:
         assert security.verify_password("admin123", hashed) is True
         assert security.verify_password("wrong", hashed) is False
 
-    def test_get_password_hash_alias(self):
-        h = security.get_password_hash("engineer123")
-        assert security.verify_password("engineer123", h)
+    def test_unified_password_hash_interface(self):
+        hashed = security.hash_password("engineer123")
+        assert security.verify_password("engineer123", hashed)
 
 
 # =====================================================================
