@@ -1,10 +1,11 @@
 """
 Industrial Operating Brain (IOB) - Main Application Entry Point
 Phase 5: Backend Integration, Performance & Security Optimization
+Stage 6: REST API Routing & Response Matrix Complete
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import structlog
@@ -23,8 +24,13 @@ from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
 )
+<<<<<<< HEAD
 from app.api import auth, users, industrial, dashboard, ws
 
+=======
+from app.api import auth, users, industrial, dashboard
+from app.api.v1.users import router as stage6_user_router
+>>>>>>> 758921e (trackA-6)
 
 # Setup structured logging
 setup_logging()
@@ -70,9 +76,9 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     
     app = FastAPI(
-        title=settings.APP_NAME,
-        version=settings.APP_VERSION,
-        description="Industrial Operating Brain - Enterprise IoT Orchestration Platform",
+        title="Core System API",
+        description="Production Architecture Stack - Stage 6 Rest Layer Complete",
+        version="1.0.0",
         docs_url="/docs" if settings.DEBUG else None,
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
@@ -89,7 +95,23 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Global Exception Handlers
+    # Global custom architectural Exception Middleware catch handler
+    @app.exception_handler(RuntimeError)
+    async def production_runtime_exception_handler(request: Request, exc: RuntimeError):
+        """
+        Prevents runtime system leaks or stack trace dumps from bubbling up to external consumers,
+        structuring a safe default JSON payload error response template.
+        """
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error_code": "SYSTEM_RUNTIME_GATED_ERROR",
+                "message": "A critical workspace execution restriction forced an operation cancellation.",
+                "details": str(exc) if settings.ENV != "production" else "Internal processing boundary error."
+            }
+        )
+
+    # Global Exception Handlers (existing Phase 5)
     @app.exception_handler(IOBException)
     async def iob_exception_handler(request: Request, exc: IOBException):
         logger.error(
@@ -133,25 +155,30 @@ def create_app() -> FastAPI:
         )
 
     # Health Check Endpoint
-    @app.get("/health", tags=["Health"])
-    async def health_check():
-        return {
-            "status": "healthy",
-            "service": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-        }
+    @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health"])
+    async def check_healthstatus():
+        """Liveness check probe hook providing deployment verification insight."""
+        return {"status": "healthy", "environment": settings.ENV}
 
     @app.get("/ready", tags=["Health"])
     async def readiness_check():
         # Add actual readiness checks (DB, MQTT, etc.)
         return {"status": "ready", "service": settings.APP_NAME}
 
+<<<<<<< HEAD
     # Include API Routers
     app.include_router(ws.router, tags=["WebSocket Telemetry"])
+=======
+    # Include Phase 5 API Routers
+>>>>>>> 758921e (trackA-6)
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
     app.include_router(industrial.router, prefix="/api/v1/industrial", tags=["Industrial IoT"])
     app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+
+    # Stage 6 — Versioned REST Matrix: User Subsystem Router
+    # Standardize versioned module subrouting tables
+    app.include_router(stage6_user_router, prefix="/api/v1")
 
     logger.info("io_application_created", routes=len(app.routes))
     return app
