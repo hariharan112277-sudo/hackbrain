@@ -24,14 +24,14 @@ logger = logging.getLogger("app.health")
 
 async def check_database_connection() -> bool:
     """
-    Phase 4 database readiness probe.
+    Phase 4 & Phase 1 database readiness probe.
 
-    Performs a lightweight `SELECT 1` via the Member 2 connection manager.
+    Performs a lightweight `SELECT 1` via the async connection engine.
     Returns False if the industrial database is unreachable.
     """
     try:
-        from database.connection import connection_manager
-        return connection_manager.check_health()
+        from apps.core.database.engine import verify_database_connection
+        return await verify_database_connection(max_retries=1, retry_interval=0.1, timeout=2.0)
     except Exception as exc:
         logger.warning(f"Database readiness check failed: {exc}")
         return False

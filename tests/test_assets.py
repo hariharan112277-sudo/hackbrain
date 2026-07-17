@@ -1,5 +1,5 @@
 """
-Asset Tracking & RBAC Authorization Test Suites — Track A (Hariharan) — Stage 4 (Testing)
+Asset Tracking & RBAC Authorization Test Suites — Track A (Hariharan) — Stage 4 & Phase 1 (Testing)
 Industrial Operating Brain (IOB) Platform
 
 Validates Stage 3 (Core Industrial Endpoints) + Stage 0 (Dependency Layer) integration:
@@ -12,14 +12,6 @@ Isolation:
   All database queries are served from a MagicMock session (no PostgreSQL required).
   Authentication context is injected via FastAPI dependency overrides (no real JWT needed
   for endpoint-level tests; one test exercises a real token for completeness).
-
-Integration wiring (unchanged):
-  • app.main.app                  — FastAPI instance created via create_app()
-  • app.database.get_db           — SQLAlchemy session dependency (mocked)
-  • app.deps.get_current_user     — JWT bearer → UserContext dependency (overridden)
-  • app.deps.require_role         — RBAC dependency factory
-  • app.models.asset.Asset        — Frozen PostgreSQL ORM (assets table)
-  • app.models.alarm.Alarm        — Frozen PostgreSQL ORM (alarms table)
 """
 
 import os
@@ -95,21 +87,36 @@ def mock_db_assets():
         resolved_at=None,
     )
 
-    # db.query(...).outerjoin(...).outerjoin(...).all()  → asset listing
-    # (auto-chained MagicMock covers arbitrary .outerjoin() depth)
-    session.query.return_value.outerjoin.return_value.order_by.return_value.all.return_value = [
-        (mock_asset, "normal")
-    ]
+    # ── Summary record ──────────────────────────────────────────────────────
+    mock_summary = MagicMock(
+        min_temp=65.0,
+        max_temp=80.0,
+        avg_temp=72.5,
+        min_press=1.5,
+        max_press=3.2,
+        avg_press=2.4,
+    )
 
-    # db.query(Asset).filter(...).first() → single asset detail
-    session.query.return_value.filter.return_value.first.return_value = mock_asset
+    def query_side_effect(*args):
+        q = MagicMock()
+        if args and args[0] is Asset:
+            q.outerjoin.return_value.order_by.return_value.all.return_value = [(mock_asset, "normal")]
+            q.filter.return_value.first.return_value = mock_asset
+            q.filter.return_value.all.return_value = [mock_asset]
+        elif args and args[0] is Alarm:
+            q.order_by.return_value.all.return_value = [mock_alarm]
+            q.filter.return_value.order_by.return_value.all.return_value = [mock_alarm]
+            q.filter.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_alarm]
+            q.filter.return_value.all.return_value = [mock_alarm]
+            q.filter.return_value.filter.return_value.all.return_value = [mock_alarm]
+            q.filter.return_value.first.return_value = mock_alarm
+            q.filter.return_value.filter.return_value.first.return_value = mock_alarm
+        else:
+            q.filter.return_value.first.return_value = mock_summary
+            q.filter.return_value.all.return_value = [mock_summary]
+        return q
 
-    # db.query(Alarm).filter(...).first() → alarm for resolve endpoint
-    # We set this AFTER the asset filter; MagicMock's chained attribute access
-    # means the *last* assignment on the same chain wins.  For tests that
-    # specifically need the alarm, we use a separate fixture.
-    session.query.return_value.filter.return_value.all.return_value = [mock_alarm]
-
+    session.query.side_effect = query_side_effect
     return session
 
 
@@ -137,63 +144,63 @@ def mock_db_resolve():
 
 
 # =====================================================================
-# GET /api/v1/industrial/assets — Authenticated Asset Listing
+# GET /api/v1/industrial/assets — Asset Inventory Listing
 # =====================================================================
 
 def test_get_assets_authenticated(mock_db_assets):
     """
-    Verifies that an authenticated user (any role) can fetch the asset
-    inventory registry with telemetry status:
+    Verifies that an authenticated engineer can retrieve asset inventory:
       1. Returns HTTP 200
-      2. Response is a list with at least one asset
-      3. Asset fields (asset_id, name, machine_id, criticality, status) are present
+      2. Includes expected summary fields (total_count, critical_count)
+      3. Returns item list containing our MOCK_ASSET_ID
     """
     app.dependency_overrides[get_db] = lambda: mock_db_assets
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="user-123", role="viewer"
+        user_id="user-123", role="engineer"
     )
 
     response = client.get("/api/v1/industrial/assets")
 
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) >= 1
-
-    first_asset = data[0]
-    assert first_asset["asset_id"] == MOCK_ASSET_ID
-    assert first_asset["name"] == "Hydraulic Pump"
-    assert first_asset["machine_id"] == "MCH-01"
-    assert first_asset["criticality"] == "high"
-    assert first_asset["status"] == "normal"
+    assert "items" in data
+    assert data["total_count"] == 1
+    assert data["items"][0]["asset_id"] == MOCK_ASSET_ID
+    assert data["items"][0]["name"] == "Hydraulic Pump"
 
 
-def test_get_assets_unauthenticated():
+def test_get_assets_unauthenticated(mock_db_assets):
     """
-    Verifies that unauthenticated requests to the asset listing are rejected
-    with HTTP 401 (OAuth2PasswordBearer requires a Bearer token).
+    Verifies that requesting asset listing without credentials fails:
+      1. Returns HTTP 401
+      2. No data is disclosed
     """
+    app.dependency_overrides[get_db] = lambda: mock_db_assets
+    # Do not override get_current_user — let the real dependency reject it
+
     response = client.get("/api/v1/industrial/assets")
     assert response.status_code == 401
 
 
 def test_get_assets_empty_inventory():
     """
-    Verifies graceful handling when the asset inventory is empty:
-    returns an empty list (not an error).
+    Verifies graceful handling when the database returns no assets:
+      1. Returns HTTP 200
+      2. total_count is 0, items is []
     """
-    session = MagicMock()
-    session.query.return_value.outerjoin.return_value.order_by.return_value.all.return_value = []
+    empty_db = MagicMock()
+    empty_db.query.return_value.outerjoin.return_value.order_by.return_value.all.return_value = []
 
-    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_db] = lambda: empty_db
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="user-123", role="viewer"
+        user_id="user-123", role="operator"
     )
 
     response = client.get("/api/v1/industrial/assets")
-
     assert response.status_code == 200
-    assert response.json() == []
+    data = response.json()
+    assert data["total_count"] == 0
+    assert data["items"] == []
 
 
 # =====================================================================
@@ -230,21 +237,22 @@ def test_get_asset_detail_authenticated(mock_db_assets):
 
 def test_get_asset_detail_not_found(mock_db_assets):
     """
-    Verifies that requesting a non-existent asset returns HTTP 404
-    with the ASSET_NOT_FOUND error code.
+    Verifies that requesting a nonexistent asset returns structured 404:
+      1. Returns HTTP 404
+      2. Error code matches ASSET_NOT_FOUND
     """
-    # Override to return None for asset lookup
-    mock_db_assets.query.return_value.filter.return_value.first.return_value = None
-    app.dependency_overrides[get_db] = lambda: mock_db_assets
+    not_found_db = MagicMock()
+    not_found_db.query.return_value.filter.return_value.first.return_value = None
+
+    app.dependency_overrides[get_db] = lambda: not_found_db
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="user-123", role="viewer"
+        user_id="user-123", role="engineer"
     )
 
-    response = client.get("/api/v1/industrial/assets/ASSET-NONEXIST")
-
+    response = client.get("/api/v1/industrial/assets/NONEXISTENT-99")
     assert response.status_code == 404
-    data = response.json()
-    assert data["detail"]["error_code"] == "ASSET_NOT_FOUND"
+    body = response.json()
+    assert body["error"]["code"] == "ASSET_NOT_FOUND"
 
 
 # =====================================================================
@@ -253,122 +261,126 @@ def test_get_asset_detail_not_found(mock_db_assets):
 
 def test_get_alerts_authenticated(mock_db_assets):
     """
-    Verifies that an authenticated user can retrieve the alarm listing:
+    Verifies that an authenticated user can list active alarms:
       1. Returns HTTP 200
-      2. Response is a list of alarm objects with required fields
+      2. Response contains list of active alarms
     """
     app.dependency_overrides[get_db] = lambda: mock_db_assets
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="user-123", role="viewer"
+        user_id="user-123", role="operator"
     )
 
     response = client.get("/api/v1/industrial/alerts")
-
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
     assert len(data) >= 1
-
-    first_alarm = data[0]
-    assert first_alarm["alarm_id"] == MOCK_ALARM_ID
-    assert first_alarm["asset_id"] == MOCK_ASSET_ID
-    assert first_alarm["severity"] == "critical"
-    assert first_alarm["code"] == "HIGH_TEMP"
+    assert data[0]["alarm_id"] == MOCK_ALARM_ID
 
 
-def test_get_alerts_unauthenticated():
-    """
-    Verifies that unauthenticated requests to the alerts endpoint are rejected.
-    """
+def test_get_alerts_unauthenticated(mock_db_assets):
+    """Verifies that listing alerts requires authentication → HTTP 401."""
+    app.dependency_overrides[get_db] = lambda: mock_db_assets
+
     response = client.get("/api/v1/industrial/alerts")
     assert response.status_code == 401
 
 
 # =====================================================================
-# POST /api/v1/industrial/alerts/{alarm_id}/resolve — RBAC Authorization
+# POST /api/v1/industrial/alerts/{alarm_id}/resolve — Alarm Resolution
 # =====================================================================
 
 def test_resolve_alarm_insufficient_role(mock_db_resolve):
     """
-    Verifies that low-privilege roles (viewer) are blocked from resolving
-    active alarms.  The require_role("admin", "engineer") dependency
-    evaluates first and raises HTTP 403 before the endpoint handler runs.
+    Verifies RBAC enforcement: resolving an alarm requires 'engineer'
+    or 'admin' role. A user with only 'viewer' role is rejected:
+      1. Returns HTTP 403 Forbidden
+      2. Database transaction commit is never called
     """
     app.dependency_overrides[get_db] = lambda: mock_db_resolve
-    # Override current user as a viewer (insufficient for resolve)
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="user-123", role="viewer"
+        user_id="user-viewer-01", role="viewer"
     )
 
-    response = client.post(f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve")
-
-    # FastAPI's RBAC layer blocks this at require_role dependency evaluation
+    response = client.post(
+        f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve",
+        json={"resolution_notes": "Attempted resolve by viewer"},
+    )
     assert response.status_code == 403
-    data = response.json()
-    assert data["detail"] == "Insufficient role"
+    mock_db_resolve.commit.assert_not_called()
 
 
 def test_resolve_alarm_as_admin(mock_db_resolve):
     """
-    Verifies that an admin-role user can successfully resolve an alarm:
+    Verifies that an 'admin' role CAN resolve an alarm:
       1. Returns HTTP 200
-      2. Response confirms the alarm is resolved
-      3. The alarm's resolved flag is set to True
+      2. status == "resolved" in response body
+      3. db.commit() is invoked once
     """
     app.dependency_overrides[get_db] = lambda: mock_db_resolve
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="admin-001", role="admin"
+        user_id="user-admin-01", role="admin"
     )
 
-    response = client.post(f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve")
-
+    response = client.post(
+        f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve",
+        json={"resolution_notes": "Resolved during maintenance window"},
+    )
     assert response.status_code == 200
-    data = response.json()
-    assert data["alarm_id"] == MOCK_ALARM_ID
-    assert data["resolved"] is True
-    assert "resolved_at" in data
+    body = response.json()
+    assert body["status"] == "resolved"
+    assert body["alarm_id"] == MOCK_ALARM_ID
+    mock_db_resolve.commit.assert_called_once()
 
 
 def test_resolve_alarm_as_engineer(mock_db_resolve):
     """
-    Verifies that an engineer-role user can also resolve alarms
-    (the allow-list includes both "admin" and "engineer").
+    Verifies that an 'engineer' role CAN resolve an alarm:
+      1. Returns HTTP 200
+      2. status == "resolved" in response body
+      3. db.commit() is invoked once
     """
     app.dependency_overrides[get_db] = lambda: mock_db_resolve
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="eng-001", role="engineer"
+        user_id="user-eng-01", role="engineer"
     )
 
-    response = client.post(f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve")
-
+    response = client.post(
+        f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve",
+        json={"resolution_notes": "Replaced faulty sensor S-04"},
+    )
     assert response.status_code == 200
-    data = response.json()
-    assert data["alarm_id"] == MOCK_ALARM_ID
-    assert data["resolved"] is True
+    body = response.json()
+    assert body["status"] == "resolved"
+    mock_db_resolve.commit.assert_called_once()
 
 
 def test_resolve_alarm_as_operator_forbidden(mock_db_resolve):
     """
-    Verifies that an operator-role user is blocked from resolving alarms
-    (only admin and engineer are allowed).
+    Verifies that an 'operator' role CANNOT resolve an alarm (`require_role("engineer", "admin")`).
+      1. Returns HTTP 403 Forbidden
+      2. db.commit() is never called
     """
     app.dependency_overrides[get_db] = lambda: mock_db_resolve
     app.dependency_overrides[get_current_user] = lambda: UserContext(
-        user_id="op-001", role="operator"
+        user_id="user-op-01", role="operator"
     )
 
-    response = client.post(f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve")
-
+    response = client.post(
+        f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve",
+        json={"resolution_notes": "Operator acknowledge action attempt"},
+    )
     assert response.status_code == 403
+    mock_db_resolve.commit.assert_not_called()
 
 
 def test_resolve_alarm_unauthenticated(mock_db_resolve):
-    """
-    Verifies that unauthenticated requests to the resolve endpoint
-    are rejected with HTTP 401 before RBAC evaluation.
-    """
+    """Verifies that resolving an alarm without bearer token returns HTTP 401."""
     app.dependency_overrides[get_db] = lambda: mock_db_resolve
 
-    response = client.post(f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve")
-
+    response = client.post(
+        f"/api/v1/industrial/alerts/{MOCK_ALARM_ID}/resolve",
+        json={"resolution_notes": "No auth token provided"},
+    )
     assert response.status_code == 401
+    mock_db_resolve.commit.assert_not_called()

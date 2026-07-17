@@ -1,12 +1,13 @@
 """
 Pytest Configuration and Fixtures
-Phase 5: Test configuration with stub repositories.
+Phase 5 & Phase 1: Test configuration with stub repositories and client fixtures.
 """
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, MagicMock
+from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.core.dependencies import initialize_stub_repositories, reset_repository_subsystem
@@ -29,6 +30,15 @@ def setup_test_env():
     settings.ENVIRONMENT = "test"
     settings.USE_STUB_REPOSITORIES = True
     initialize_stub_repositories()
+    
+    # Ensure SQLite tables exist for integration tests
+    try:
+        from apps.core.database.engine import sync_engine, Base
+        from app.models import user, asset, alarm
+        Base.metadata.create_all(bind=sync_engine)
+    except Exception:
+        pass
+
     yield
     reset_repository_subsystem()
     for name, value in original_values.items():
@@ -39,6 +49,12 @@ def setup_test_env():
 def app():
     """Create test app instance."""
     return create_app()
+
+
+@pytest.fixture(scope="function")
+def client(app):
+    """Create sync test client."""
+    return TestClient(app)
 
 
 @pytest_asyncio.fixture
