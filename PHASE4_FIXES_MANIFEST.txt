@@ -1,0 +1,12 @@
+IOB Phase 4 — Closure Fixes (the 4-item Claude Evaluation Closure Matrix)
+Generated: 2026-07-17T17:31:15.013465+00:00
+
+FIX FILES (extract over repo root):
+  app/core/exceptions.py  -> #1 Validation 500 (jsonable_encoder) + #4 DB exceptions
+  app/main.py             -> #1 & #4 global exception handlers registered
+  PHASE4_CLOSURE_CHANGES.md -> full closure write-up + how to execute
+
+DELETIONS applied (remove these from your repo):
+  app/api/industrial.py
+  tests/test_industrial.py
+  parser.py
