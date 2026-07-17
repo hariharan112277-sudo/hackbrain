@@ -92,12 +92,19 @@ class MQTTBridge:
             
             message = {
                 "topic": topic,
-                "payload": json_payload
+                "payload": json_payload,
+                "received_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
             }
-            
-            from shared.event_bus import publish_telemetry
-            await publish_telemetry(message)
-            logger.debug("Telemetry message published to Redis", topic=topic)
+            # Keep the local queue as a deterministic hand-off for WebSocket
+            # consumers and publish to Redis for multi-process fan-out. A Redis
+            # outage must not discard an already-ingested MQTT message.
+            await sensor_queue.put(message)
+            try:
+                from shared.event_bus import publish_telemetry
+                await publish_telemetry(message)
+            except Exception as exc:
+                logger.warning("Telemetry Redis publish unavailable; local queue retained", error=str(exc))
+            logger.debug("Telemetry message ingested", topic=topic)
         except UnicodeDecodeError as exc:
             logger.error("Failed to decode payload as UTF-8", topic=topic, error=str(exc))
         except json.JSONDecodeError as exc:
