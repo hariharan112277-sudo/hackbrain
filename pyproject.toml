@@ -36,6 +36,7 @@ dependencies = [
     # Database
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.0",
     "alembic>=1.13.0",
     
     # Redis & Caching
@@ -45,6 +46,8 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "PyJWT>=2.8.0",
     "passlib[bcrypt]>=1.7.4",
+    # passlib 1.7.x relies on the bcrypt 4.0 backend API.
+    "bcrypt>=4.0.0,<4.1.0",
     "python-multipart>=0.0.6",
     
     # Configuration
@@ -53,8 +56,9 @@ dependencies = [
     # Logging
     "structlog>=24.1.0",
     
-    # HTTP Client
+    # HTTP Client and MQTT integration
     "httpx>=0.26.0",
+    "paho-mqtt>=2.0.0",
     
     # Monitoring
     "prometheus-client>=0.19.0",
@@ -62,7 +66,6 @@ dependencies = [
     # Utilities
     "python-dateutil>=2.8.2",
     "email-validator>=2.1.0",
-    "gmqtt>=0.6.11",
 ]
 
 [project.optional-dependencies]
@@ -121,6 +124,7 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
@@ -172,7 +176,7 @@ skip-magic-trailing-comma = false
 [tool.black]
 line-length = 100
 target-version = ["py311"]
-include = '\.pyi?$'
+include = "\\.pyi?$"
 extend-exclude = '''
 /(
   # directories
@@ -255,9 +259,3 @@ skip = ["B101", "B601"]  # assert_used, shell_injection (false positives)
 [tool.safety]
 ignore-vulns = []
 
-# [tool.pytest.mock]
-# mock-module = "tests.mocks"
-
-[tool.pytest-asyncio]
-mode = "auto"
-default-fixture-loop-scope = "function"

@@ -4,7 +4,6 @@
 
 # MQTT broker client (publisher + subscriber)
 paho-mqtt>=2.0.0
-gmqtt>=0.6.11
 
 # Pydantic for strict schema validation (v1 or v2 compatible)
 pydantic>=1.10,<3.0
@@ -29,14 +28,22 @@ starlette>=0.27.0
 # --- Security Dependencies (Phase 3) ---
 # JWT encoding/decoding
 python-jose[cryptography]>=3.3.0
-PyJWT>=2.8.0
 # Password hashing (Argon2 + Bcrypt)
 passlib[argon2]>=1.7.4
 argon2-cffi>=21.3.0
-bcrypt>=4.0.0
+# passlib 1.7.x is incompatible with bcrypt 4.1+ backend detection.
+bcrypt>=4.0.0,<4.1.0
+
+# Structured logging (app/core/logging_config.py, app/main.py, app/services/auth_service.py)
+structlog>=24.1.0
+
+# PyJWT — used directly by tests/test_deps_stage0.py alongside python-jose in app.core.security
+PyJWT>=2.8.0
 
 # Tests
 pytest>=7.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
 
 # --- Phase 4 Enterprise Backend API Dependencies ---
 # OAuth2 form parsing & multipart uploads

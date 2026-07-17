@@ -1,7 +1,7 @@
 # Track A — Stage 2 (Authentication) — Delivery Notes
 
 **Owner:** Hariharan (Track A) · **Scope:** `app/core/security.py`, `app/api/auth.py`
-**Status:** ✅ Implemented, integrated with existing Stage 0 / Stage 1 / Phase-5 wiring, and verified offline.
+**Status:** ✅ Implemented, integrated with existing Stage 0 / Stage 1 / Stage 5 wiring, and verified offline.
 
 ---
 
@@ -49,11 +49,11 @@ The Stage-2 prompt writes a *clean* security module, but the live repo already h
 | Consumer | What it expects from `app.core.security` |
 |---|---|
 | `app/deps.py` (Stage 0) | `verify_token(token) → dict` raising `AuthenticationError` |
-| `app/services/auth_service.py` (Phase 5) | `create_access_token(data: dict, expires_delta=…)` / `get_password_hash` |
+| `app/services/auth_service.py` (Phase 5) | `create_access_token(data: dict, expires_delta=…)` / `legacy password hash helper` |
 | `app/api/users.py`, `industrial.py`, `dashboard.py` | `get_current_user`, `require_roles`, `require_permissions` |
 | Stage-0 tests | `core.security.get_current_user` coexists with `deps.get_current_user` |
 
-**Solution:** keep the Stage-2 *primary* API (string `user_id` + `role`) and accept the Phase-5 dict form via `Union[str, Dict]` overloads. All legacy helpers are preserved. Zero other-track files were broken.
+**Solution:** keep the Stage-2 *primary* API (string `user_id` + `role`) and accept the Stage 5 dict form via `Union[str, Dict]` overloads. All legacy helpers are preserved. Zero other-track files were broken.
 
 ### Config resolution
 
@@ -66,7 +66,7 @@ _access_expire_minutes() → settings.JWT_EXPIRE_MINUTES or settings.ACCESS_TOKE
 
 ### Schemas
 
-`LoginRequest` / `RefreshRequest` are added to `app.models.schemas` (Stage-1 package the prompt imports from). The existing Phase-5 `app.schemas.auth.LoginRequest` is **untouched**.
+`LoginRequest` / `RefreshRequest` are added to `app.models.schemas` (Stage-1 package the prompt imports from). The existing Stage 5 `app.schemas.auth.LoginRequest` is **untouched**.
 
 ### error_envelope
 
@@ -137,4 +137,4 @@ curl -X GET "http://localhost:8000/api/v1/auth/me"
 | `tests/test_stage2_auth.py` | NEW | Track A Stage 2 |
 | `app/deps.py` | **NOT TOUCHED** | Stage 0 |
 | `app/database.py` / models ORM | **NOT TOUCHED** | Stage 1 |
-| Phase-5 services / other routers | **NOT TOUCHED** | other tracks |
+| Stage 5 services / other routers | **NOT TOUCHED** | other tracks |
