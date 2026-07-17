@@ -57,6 +57,7 @@ class MachineCreate(MachineBase):
 class MachineUpdate(BaseModel):
     """Machine update request."""
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    serial_number: Optional[str] = Field(default=None, min_length=1, max_length=100)
     model: Optional[str] = Field(default=None, max_length=100)
     manufacturer: Optional[str] = Field(default=None, max_length=100)
     location: Optional[str] = Field(default=None, max_length=255)
@@ -87,12 +88,16 @@ class MachineListResponse(BaseModel):
 
 # Telemetry Schemas
 class TelemetryMetric(BaseModel):
-    """Individual telemetry metric."""
+    """Individual telemetry metric with mapping-style read compatibility."""
     name: str = Field(..., description="Metric name")
     value: float = Field(..., description="Metric value")
     unit: Optional[str] = Field(default=None, description="Unit of measurement")
-    timestamp: datetime = Field(..., description="Reading timestamp")
+    timestamp: Optional[datetime] = Field(default=None, description="Reading timestamp")
     quality: Optional[str] = Field(default="good", description="Data quality")
+
+    def __getitem__(self, key: str) -> Any:
+        """Support existing consumers that read metric fields as a mapping."""
+        return getattr(self, key)
 
 
 class TelemetryResponse(BaseModel):

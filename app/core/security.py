@@ -1,19 +1,4 @@
-"""
-Security Utilities — Track A (Hariharan) — Stage 2 (Authentication)
-Industrial Operating Brain (IOB) Platform
-
-Implements:
-  * bcrypt password hashing / verification
-  * HS256 JWT access + refresh token lifecycle
-  * Safe token decoding with HTTP 401 on failure
-
-Backward-compatible surface for Phase 5 / Stage 0 callers:
-  * get_password_hash  → alias of hash_password
-  * verify_token       → AuthenticationError bridge used by app.deps
-  * create_access_token / create_refresh_token accept Stage-2 *or* Phase-5 signatures
-  * get_current_user / get_current_user_id / require_roles / require_permissions
-    remain available for existing Phase-5 routers (users / industrial / dashboard)
-"""
+"""Password, JWT, authorization, and HTTP security utilities."""
 
 from __future__ import annotations
 
@@ -24,21 +9,59 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
-from app.config import settings
+from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError
 
-# ---------------------------------------------------------------------------
-# Password hashing (bcrypt)
-# ---------------------------------------------------------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Configure passlib to use hardened bcrypt defaults. Cost is controlled by the
+# rounds setting while passlib retains migration support for older bcrypt hashes.
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=settings.BCRYPT_ROUNDS,
+)
 
-# Optional bearer scheme used by the Phase-5 helpers below.
 _http_bearer = HTTPBearer(auto_error=False)
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Attach a conservative baseline of browser security headers."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+        response.headers.setdefault("Content-Security-Policy", "default-src 'self'")
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+
+def hash_password(plain_password: str) -> str:
+    """Hash a plain-text password securely using bcrypt."""
+    return pwd_context.hash(plain_password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain-text password against a bcrypt password hash.
+
+    Malformed or unsupported stored hashes are treated as failed credentials
+    rather than being allowed to escape through an authentication endpoint.
+    """
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (TypeError, ValueError):
+        return False
+
+
 def _jwt_secret() -> str:
-    """Resolve JWT signing secret (Stage-2 name → Phase-5 name)."""
     return getattr(settings, "JWT_SECRET_KEY", None) or settings.SECRET_KEY
 
 
@@ -57,214 +80,164 @@ def _refresh_expire_days() -> int:
     return int(getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 7))
 
 
-# =====================================================================
-# Stage 2 — Password utilities
-# =====================================================================
-
-def hash_password(plain_password: str) -> str:
-    """Hashes a plain-text password using bcrypt."""
-    return pwd_context.hash(plain_password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifies a plain-text password against a hashed bcrypt password."""
-    try:
-        return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
-        return False
-
-
-# Phase-5 alias (auth_service / user_service import this name)
-def get_password_hash(password: str) -> str:
-    """Alias of ``hash_password`` kept for Phase-5 callers."""
-    return hash_password(password)
-
-
-# =====================================================================
-# Stage 2 — JWT token lifecycle
-# =====================================================================
-
 def create_access_token(
-    user_id: Union[str, Dict[str, Any]],
-    role: Optional[str] = None,
+    user_id: Union[str, Dict[str, Any], None] = None,
+    role: Optional[Union[str, timedelta]] = None,
     expires_delta: Optional[timedelta] = None,
+    *,
+    data: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """
-    Generate an HS256 JWT access token.
+    """Create an access JWT from either subject/role values or a claims mapping.
 
-    Stage-2 signature
-        create_access_token(user_id: str, role: str) -> str
-        Payload: ``sub``, ``role``, ``exp``  (+ ``type=access`` for Stage-0)
-
-    Phase-5 signature (preserved)
-        create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str
-        ``data`` is merged into the payload; ``type=access`` is forced.
+    ``data=`` remains supported for callers that use the common keyword form.
+    A positional ``timedelta`` after a claims mapping is normalized to
+    ``expires_delta`` so older service calls retain their intended lifetime.
     """
-    if expires_delta is not None:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=_access_expire_minutes())
+    if data is not None:
+        if user_id is not None:
+            raise TypeError("Provide either 'user_id' or 'data', not both")
+        user_id = data
+
+    if user_id is None:
+        raise TypeError("A user subject or claims mapping is required")
+
+    if isinstance(user_id, dict) and isinstance(role, timedelta):
+        if expires_delta is not None:
+            raise TypeError("expires_delta was provided twice")
+        expires_delta = role
+        role = None
+
+    expire = datetime.now(timezone.utc) + (
+        expires_delta if expires_delta is not None else timedelta(minutes=_access_expire_minutes())
+    )
 
     if isinstance(user_id, dict):
-        # Phase-5 path: first arg is a claims dictionary
-        to_encode: Dict[str, Any] = dict(user_id)
-        to_encode.update({"exp": expire, "type": "access"})
-        # Normalise primary role claim so Stage-0 UserContext can resolve it
-        if "role" not in to_encode:
-            roles = to_encode.get("roles")
+        claims: Dict[str, Any] = dict(user_id)
+        claims.update({"exp": expire, "type": "access"})
+        if "role" not in claims:
+            roles = claims.get("roles")
             if isinstance(roles, list) and roles:
-                to_encode["role"] = roles[0]
-        return jwt.encode(to_encode, _jwt_secret(), algorithm=_jwt_algorithm())
+                claims["role"] = roles[0]
+        return jwt.encode(claims, _jwt_secret(), algorithm=_jwt_algorithm())
 
-    # Stage-2 path: (user_id, role)
-    if role is None:
-        raise TypeError(
-            "create_access_token(user_id, role) requires 'role' when user_id is a string"
-        )
-    to_encode = {
+    if role is None or isinstance(role, timedelta):
+        raise TypeError("A role is required when the user subject is a string")
+
+    claims = {
         "sub": str(user_id),
         "role": role,
         "type": "access",
         "exp": expire,
     }
-    return jwt.encode(to_encode, _jwt_secret(), algorithm=_jwt_algorithm())
+    return jwt.encode(claims, _jwt_secret(), algorithm=_jwt_algorithm())
 
 
 def create_refresh_token(
-    user_id: Union[str, Dict[str, Any]],
+    user_id: Union[str, Dict[str, Any], None] = None,
     expires_delta: Optional[timedelta] = None,
     *,
     role: Optional[str] = None,
+    data: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """
-    Generate an HS256 JWT refresh token.
+    """Create a refresh JWT from either subject values or a claims mapping."""
+    if data is not None:
+        if user_id is not None:
+            raise TypeError("Provide either 'user_id' or 'data', not both")
+        user_id = data
+    if user_id is None:
+        raise TypeError("A user subject or claims mapping is required")
 
-    Stage-2 signature
-        create_refresh_token(user_id: str) -> str
-        Valid for 7 days. Payload: ``sub``, ``type=refresh``, ``exp``.
-        Optionally embeds ``role`` so /refresh can re-issue a correct access token.
-
-    Phase-5 signature (preserved)
-        create_refresh_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str
-    """
-    if expires_delta is not None:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(days=_refresh_expire_days())
+    expire = datetime.now(timezone.utc) + (
+        expires_delta if expires_delta is not None else timedelta(days=_refresh_expire_days())
+    )
 
     if isinstance(user_id, dict):
-        to_encode: Dict[str, Any] = dict(user_id)
-        to_encode.update({"exp": expire, "type": "refresh"})
-        if "role" not in to_encode:
-            roles = to_encode.get("roles")
+        claims: Dict[str, Any] = dict(user_id)
+        claims.update({"exp": expire, "type": "refresh"})
+        if "role" not in claims:
+            roles = claims.get("roles")
             if isinstance(roles, list) and roles:
-                to_encode["role"] = roles[0]
-        return jwt.encode(to_encode, _jwt_secret(), algorithm=_jwt_algorithm())
+                claims["role"] = roles[0]
+        return jwt.encode(claims, _jwt_secret(), algorithm=_jwt_algorithm())
 
-    to_encode = {
+    claims = {
         "sub": str(user_id),
         "type": "refresh",
         "exp": expire,
     }
     if role is not None:
-        to_encode["role"] = role
-    return jwt.encode(to_encode, _jwt_secret(), algorithm=_jwt_algorithm())
+        claims["role"] = role
+    return jwt.encode(claims, _jwt_secret(), algorithm=_jwt_algorithm())
 
 
 def decode_token(token: str) -> Dict[str, Any]:
-    """
-    Safely decode an HS256 token.
-
-    Raises HTTP 401 Unauthorized if the token signature is invalid,
-    expired, or structurally corrupted.
-    """
+    """Decode a JWT or raise a standards-compliant HTTP 401 response."""
     try:
-        payload = jwt.decode(
-            token,
-            _jwt_secret(),
-            algorithms=[_jwt_algorithm()],
-        )
-        return payload
-    except JWTError:
+        return jwt.decode(token, _jwt_secret(), algorithms=[_jwt_algorithm()])
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token is invalid or expired",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
 
-# =====================================================================
-# Phase-5 / Stage-0 bridge — verify_token (raises AuthenticationError)
-# =====================================================================
+def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
+    """Decode an access token, returning ``None`` for invalid or expired input."""
+    try:
+        payload = jwt.decode(token, _jwt_secret(), algorithms=[_jwt_algorithm()])
+    except JWTError:
+        return None
+    if payload.get("type") not in (None, "access"):
+        return None
+    return payload
+
 
 def verify_token(token: str) -> Dict[str, Any]:
-    """
-    Verify and decode a JWT token.
-
-    Used by ``app.deps.decode_token`` which converts ``AuthenticationError``
-    into a standard FastAPI ``HTTPException(401)``.
-    """
+    """Decode a JWT and expose domain authentication errors to service callers."""
     try:
-        payload = jwt.decode(
-            token,
-            _jwt_secret(),
-            algorithms=[_jwt_algorithm()],
-        )
-        return payload
+        return jwt.decode(token, _jwt_secret(), algorithms=[_jwt_algorithm()])
     except JWTError as exc:
-        # Distinguish expiry where possible for clearer messages
-        msg = str(exc).lower()
-        if "expired" in msg:
-            raise AuthenticationError("Token has expired")
-        raise AuthenticationError("Invalid token")
+        message = "Token has expired" if "expired" in str(exc).lower() else "Invalid token"
+        raise AuthenticationError(message) from exc
 
-
-# =====================================================================
-# Phase-5 helpers — used by users / industrial / dashboard routers
-# =====================================================================
 
 async def get_current_user_id(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
 ) -> str:
-    """Extract and validate user ID from JWT token (Phase-5 helper)."""
+    """Extract the subject from a valid bearer access token."""
     if not credentials:
         raise AuthenticationError("Missing authentication credentials")
 
     payload = verify_token(credentials.credentials)
-
-    if payload.get("type") not in (None, "access"):
-        # Allow tokens without explicit type (Stage-2 pure form) or type=access
-        if payload.get("type") == "refresh":
-            raise AuthenticationError("Invalid token type")
+    if payload.get("type") == "refresh":
+        raise AuthenticationError("Invalid token type")
 
     user_id = payload.get("sub")
     if not user_id:
         raise AuthenticationError("Invalid token payload")
-    return user_id
+    return str(user_id)
 
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
 ) -> Dict[str, Any]:
-    """Extract and validate full user payload from JWT token (Phase-5 helper)."""
+    """Return claims from a valid bearer access token."""
     if not credentials:
         raise AuthenticationError("Missing authentication credentials")
 
     payload = verify_token(credentials.credentials)
-
     if payload.get("type") == "refresh":
         raise AuthenticationError("Invalid token type")
-
     return payload
 
 
 def require_roles(*allowed_roles: str):
-    """Dependency factory for role-based access control (Phase-5)."""
+    """Build a FastAPI dependency requiring at least one allowed role."""
 
     async def role_checker(
         current_user: Dict[str, Any] = Depends(get_current_user),
     ) -> Dict[str, Any]:
-        # Support both single ``role`` claim (Stage-2) and ``roles`` list (Phase-5)
         user_roles = current_user.get("roles") or []
         if not user_roles and current_user.get("role"):
             user_roles = [current_user["role"]]
@@ -279,13 +252,13 @@ def require_roles(*allowed_roles: str):
 
 
 def require_permissions(*required_permissions: str):
-    """Dependency factory for permission-based access control (Phase-5)."""
+    """Build a FastAPI dependency requiring every named permission."""
 
     async def permission_checker(
         current_user: Dict[str, Any] = Depends(get_current_user),
     ) -> Dict[str, Any]:
         user_permissions = current_user.get("permissions", [])
-        if not all(perm in user_permissions for perm in required_permissions):
+        if not all(permission in user_permissions for permission in required_permissions):
             raise AuthorizationError(
                 f"Required permissions: {', '.join(required_permissions)}",
                 details={
@@ -298,17 +271,7 @@ def require_permissions(*required_permissions: str):
     return permission_checker
 
 
-__all__ = [
-    "pwd_context",
-    "hash_password",
-    "get_password_hash",
-    "verify_password",
-    "create_access_token",
-    "create_refresh_token",
-    "decode_token",
-    "verify_token",
-    "get_current_user",
-    "get_current_user_id",
-    "require_roles",
-    "require_permissions",
-]
+# Password helpers are the only wildcard-exported cryptographic interface.
+# JWT and authorization functions remain explicitly importable by existing
+# application wiring without widening the package's public star-import surface.
+__all__ = ["hash_password", "verify_password"]

@@ -10,7 +10,12 @@ from fastapi.responses import JSONResponse
 import structlog
 
 from app.core.config import settings
+from app.core.dependencies import (
+    bootstrap_repository_subsystem,
+    shutdown_repository_subsystem,
+)
 from app.core.logging_config import setup_logging
+from app.core.security import SecurityHeadersMiddleware
 from app.core.exceptions import (
     IOBException,
     ResourceNotFoundError,
@@ -74,7 +79,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS Configuration
+    # Browser and CORS security boundaries.
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
