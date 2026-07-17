@@ -1,21 +1,26 @@
 """
-Integration-Service Repository Adapters.
+Member 1 - Async Pipeline Integration Adapters (Phase 5 Target).
 
-Concrete implementations of the Phase 4 repository interfaces that delegate to
-the existing Member 2 integration services (integration.services) and SQLAlchemy
+Implements the repository contracts (IMachineRepository, ITelemetryRepository,
+IAlarmRepository, IMetadataRepository, IUserRepository, IRoleRepository,
+IPermissionRepository) by wrapping Phase 3/4 integration services and
 repositories (database.repository). These adapters bridge the async API surface
-expected by the REST tier with the synchronous, session-based integration layer.
+with existing synchronous ORM/service implementations via a thread pool executor.
 """
+
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Optional, List, Dict, Any
 from uuid import UUID
+from datetime import datetime, timezone
 
 from app.repositories.interfaces import (
     IMachineRepository,
     ITelemetryRepository,
     IAlarmRepository,
     IMetadataRepository,
+    IUserRepository,
+    IRoleRepository,
+    IPermissionRepository,
 )
 
 # Member 2 integration contracts and services
@@ -58,45 +63,61 @@ class IntegrationMachineRepository(IMachineRepository):
                 "type": getattr(dto, "current_mode", "AUTOMATIC"),
                 "status": str(dto.status.value).lower(),
                 "location": getattr(dto, "location", "UNKNOWN"),
+                "created_at": getattr(dto, "created_at", None),
             }
 
         return await asyncio.to_thread(self._runner.run, _fetch)
 
-    async def list_machines(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    async def list_all(
+        self,
+        status: Optional[str] = None,
+        type: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
         def _fetch(session):
-            dtos = self._service.list_machines(session, skip, limit)
-            return [
-                {
-                    "id": str(dto.id),
-                    "name": getattr(dto, "name", "Unnamed"),
-                    "type": getattr(dto, "current_mode", "AUTOMATIC"),
-                    "status": str(dto.status.value).lower(),
-                    "location": getattr(dto, "location", "UNKNOWN"),
+            dtos = self._service.list_machines(session)
+            results = []
+            for d in dtos:
+                item = {
+                    "id": str(d.id),
+                    "name": getattr(d, "name", "Unnamed"),
+                    "type": getattr(d, "current_mode", "AUTOMATIC"),
+                    "status": str(d.status.value).lower(),
+                    "location": getattr(d, "location", "UNKNOWN"),
                 }
-                for dto in dtos
-            ]
+                if status and item["status"] != status.lower():
+                    continue
+                if type and item["type"] != type:
+                    continue
+                results.append(item)
+            return results[:limit]
 
         return await asyncio.to_thread(self._runner.run, _fetch)
 
 
 class IntegrationTelemetryRepository(ITelemetryRepository):
-    """Telemetry provider backed by integration.services.TelemetryIntegrationService."""
+    """Telemetry retrieval backed by the SQLAlchemy Telemetry model."""
 
     def __init__(self, connection_manager: Any):
         self._runner = _SessionRunner(connection_manager)
-        self._service = TelemetryIntegrationService()
 
     async def get_latest_telemetry(self, machine_id: str) -> Optional[Dict[str, Any]]:
         def _fetch(session):
-            dtos = self._service.get_latest_machine_telemetry(session, UUID(machine_id))
-            if not dtos:
+            from app.models.asset import Telemetry
+            r = (
+                session.query(Telemetry)
+                .filter(Telemetry.machine_id == UUID(machine_id))
+                .order_by(Telemetry.timestamp.desc())
+                .first()
+            )
+            if not r:
                 return None
-            latest = max(dtos, key=lambda d: d.timestamp)
-            metrics = {str(d.sensor_id): float(d.measured_value) for d in dtos}
             return {
-                "machine_id": str(machine_id),
-                "timestamp": latest.timestamp,
-                "metrics": metrics,
+                "machine_id": str(r.machine_id),
+                "timestamp": r.timestamp,
+                "metrics": {
+                    "measured_value": float(r.measured_value),
+                },
             }
 
         return await asyncio.to_thread(self._runner.run, _fetch)
@@ -105,7 +126,7 @@ class IntegrationTelemetryRepository(ITelemetryRepository):
         self, machine_id: str, metric: str, limit: int = 100
     ) -> List[Dict[str, Any]]:
         def _fetch(session):
-            from database.models import Telemetry
+            from app.models.asset import Telemetry
             records = (
                 session.query(Telemetry)
                 .filter(Telemetry.machine_id == UUID(machine_id))
@@ -132,7 +153,7 @@ class IntegrationAlarmRepository(IAlarmRepository):
 
     async def get_active_alarms(self, severity: Optional[str] = None) -> List[Dict[str, Any]]:
         def _fetch(session):
-            from database.models import Alarm
+            from app.models.alarm import Alarm
             query = session.query(Alarm).filter(Alarm.state != "CLEARED")
             if severity:
                 query = query.filter(Alarm.severity == severity.upper())
@@ -153,7 +174,7 @@ class IntegrationAlarmRepository(IAlarmRepository):
 
     async def resolve_alarm(self, alarm_id: str, resolved_by: str) -> bool:
         def _resolve(session):
-            from database.models import Alarm
+            from app.models.alarm import Alarm
             alarm = session.query(Alarm).filter(Alarm.id == UUID(alarm_id)).first()
             if not alarm:
                 return False
@@ -167,22 +188,14 @@ class IntegrationAlarmRepository(IAlarmRepository):
 
 
 class IntegrationMetadataRepository(IMetadataRepository):
-    """Metadata provider backed by integration.services.MetadataIntegrationService."""
+    """Metadata store backed by integration.services.MetadataIntegrationService."""
 
     def __init__(self, connection_manager: Any):
         self._runner = _SessionRunner(connection_manager)
         self._service = MetadataIntegrationService()
-        self._asset_service = AssetIntegrationService()
 
-    async def get_machine_metadata(self, machine_id: str) -> Dict[str, Any]:
+    async def get_metadata(self, entity_id: str) -> Optional[Dict[str, Any]]:
         def _fetch(session):
-            meta = self._service.get_entity_metadata(session, "machine", UUID(machine_id))
-            machine_dto = MachineRegistryService().get_machine(session, UUID(machine_id))
-            return {
-                "machine": {"id": str(machine_dto.id), "status": str(machine_dto.status.value)},
-                "asset": self._asset_service.get_asset(session, machine_dto.asset_id).model_dump(mode="json"),
-                "engineering_units": self._service.get_engineering_units_map(),
-                **meta,
-            }
+            return self._service.get_metadata(session, UUID(entity_id))
 
         return await asyncio.to_thread(self._runner.run, _fetch)

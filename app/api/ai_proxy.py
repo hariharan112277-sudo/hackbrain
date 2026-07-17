@@ -11,6 +11,12 @@ from app.services.ai_client import call_ai
 router = APIRouter()
 
 
+@router.get("/health")
+async def ai_gateway_health() -> dict[str, Any]:
+    """AI Gateway operational readiness endpoint (R-7.1)."""
+    return {"status": "healthy", "service": "ai_gateway"}
+
+
 @router.post("/predictive/infer")
 async def predictive_infer(payload: dict[str, Any]) -> dict[str, Any]:
     """Relay predictive inference without modifying request or response fields."""

@@ -1,6 +1,7 @@
 """
-Asynchronous MQTT Client Bridge — Track A — Stage 2
+Asynchronous MQTT Client Bridge — Track A — Stage 2 & Phase 1
 Subscribes to Industrial IoT sensor topics and puts them into a shared memory queue.
+Features exponential backoff reconnection strategy (up to 60s max wait).
 """
 
 import asyncio
@@ -116,15 +117,18 @@ class MQTTBridge:
             self._reconnect_task = asyncio.create_task(self.reconnect_loop())
 
     async def reconnect_loop(self) -> None:
-        """Background loop trying to re-establish connection to the broker."""
+        """Background loop trying to re-establish connection to the broker with exponential backoff (up to 60s max)."""
+        wait_time = 2
+        max_wait = 60
         while not self._connected:
-            logger.info("Attempting to reconnect to MQTT Broker in 5 seconds...")
-            await asyncio.sleep(5)
+            logger.info(f"Attempting to reconnect to MQTT Broker in {wait_time} seconds...")
+            await asyncio.sleep(wait_time)
             try:
                 await self.client.connect(self.host, self.port, keepalive=self.keepalive)
                 break
             except Exception as e:
-                logger.error("Reconnection attempt failed", error=str(e))
+                logger.error("Reconnection attempt failed", error=str(e), next_retry_s=wait_time)
+                wait_time = min(wait_time * 2, max_wait)
 
     async def start(self) -> None:
         """Starts the MQTT Client and establishes connection to the broker."""

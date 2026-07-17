@@ -1,6 +1,6 @@
 """
 AI Client Service
-Phase 5: Relay client for communicating with the external AI service platform.
+Phase 5 & Phase 1 Remediation: Relay client for communicating with the external AI service platform.
 """
 
 from typing import Any, Optional
@@ -35,7 +35,8 @@ async def call_ai(
     logger.info("Relaying request to external AI service", url=url, method=method)
 
     try:
-        async with httpx.AsyncClient(timeout=settings.AI_SERVICE_TIMEOUT) as client:
+        timeout_val = getattr(settings, "AI_SERVICE_TIMEOUT", 5.0)
+        async with httpx.AsyncClient(timeout=timeout_val) as client:
             if method.upper() == "POST":
                 response = await client.post(url, json=payload)
             elif method.upper() == "PUT":
@@ -65,9 +66,10 @@ async def call_ai(
     except httpx.RequestError as exc:
         logger.error("AI service connectivity issue", url=url, error=str(exc))
         return {
-            "success": False,
-            "error": "AI_SERVICE_UNAVAILABLE",
-            "message": f"Could not connect to external AI service: {exc}",
+            "error": {
+                "code": "AI_UNAVAILABLE",
+                "message": "AI service is temporarily unavailable",
+            }
         }
     except Exception as exc:
         logger.error("Unexpected error in AI client service", url=url, error=str(exc))
