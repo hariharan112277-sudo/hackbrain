@@ -5,10 +5,10 @@ Track A (Database Layer) — Phase 0 & Phase 1 Remediation
 Configures SQLAlchemy 2.0 async engine against PostgreSQL and provides
 reusable AsyncSession generators injected into request lifecycles.
 Replaces synchronous session factory from Stage 1.
-Re-exports canonical engine definitions from apps.core.database.engine.
+Re-exports canonical engine definitions from app.core.database.engine.
 """
 
-from apps.core.database.engine import (
+from app.core.database.engine import (
     DATABASE_URL,
     AsyncSessionLocal,
     SyncSessionLocal,

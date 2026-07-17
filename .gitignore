@@ -1,1 +1,12 @@
 __pycache__/
+
+# Python/runtime debris
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local state
+*.db
+.env

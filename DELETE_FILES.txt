@@ -1,0 +1,8 @@
+Delete these legacy files/directories when applying the fixes:
+
+app/api/industrial.py
+apps/                      (entire directory)
+duplicate_detector.py
+metadata_enricher.py
+parser.py
+tests/test_industrial.py

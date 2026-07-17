@@ -30,7 +30,7 @@ async def check_database_connection() -> bool:
     Returns False if the industrial database is unreachable.
     """
     try:
-        from apps.core.database.engine import verify_database_connection
+        from app.core.database.engine import verify_database_connection
         return await verify_database_connection(max_retries=1, retry_interval=0.1, timeout=2.0)
     except Exception as exc:
         logger.warning(f"Database readiness check failed: {exc}")

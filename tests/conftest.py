@@ -33,7 +33,7 @@ def setup_test_env():
     
     # Ensure SQLite tables exist for integration tests
     try:
-        from apps.core.database.engine import sync_engine, Base
+        from app.core.database.engine import sync_engine, Base
         from app.models import user, asset, alarm
         Base.metadata.create_all(bind=sync_engine)
     except Exception:

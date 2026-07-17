@@ -52,11 +52,11 @@ from app.core.exceptions import (
 )
 
 # Combined all distinct module routers cleanly
-from app.api import auth, users, industrial, dashboard, ws, ai_proxy
+from app.api import ai_proxy, auth, dashboard, users, ws
 from app.api.v1.users import router as stage6_user_router
 from app.core.health import router as health_router
-from apps.core.api.asset import router as asset_router
-from apps.core.api.alert import router as alert_router
+from app.api.v1.assets import router as asset_router
+from app.api.v1.alerts import router as alert_router
 
 # Setup structured logging
 setup_logging()
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 
     # Stage 1: Verify async database connection pool (Section 4 & Section 6)
     try:
-        from apps.core.database.engine import verify_database_connection
+        from app.core.database.engine import verify_database_connection
         db_ok = await verify_database_connection(max_retries=3, retry_interval=1.0, timeout=5.0)
         if db_ok:
             logger.info("io_database_pool_verified")
@@ -269,9 +269,6 @@ def create_app() -> FastAPI:
     app.include_router(stage6_user_router, prefix="/api/v1/stage6-users", tags=["Stage 6 Users"])
     app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
     app.include_router(alert_router, prefix="/api/v1/alerts", tags=["Alerts"])
-    # Phase 4 wiring fix: the Stage 3 industrial router was imported but never
-    # mounted, leaving /api/v1/industrial/* unreachable (404) for frontends.
-    app.include_router(industrial.router, prefix="/api/v1/industrial", tags=["Industrial Core"])
     app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
     app.include_router(ai_proxy.router, prefix="/api/v1/ai", tags=["AI Processing Gateway"])
 
