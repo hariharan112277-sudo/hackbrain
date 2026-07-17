@@ -35,7 +35,8 @@ async def call_ai(
     logger.info("Relaying request to external AI service", url=url, method=method)
 
     try:
-        timeout_val = getattr(settings, "AI_SERVICE_TIMEOUT", 5.0)
+        # R-5.1: Use an explicit 10-second timeout for the AI Gateway proxy layer
+        timeout_val = 10.0
         async with httpx.AsyncClient(timeout=timeout_val) as client:
             if method.upper() == "POST":
                 response = await client.post(url, json=payload)

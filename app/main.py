@@ -33,6 +33,8 @@ from app.core.exceptions import (
 from app.api import auth, users, industrial, dashboard, ws, ai_proxy
 from app.api.v1.users import router as stage6_user_router
 from app.core.health import router as health_router
+from apps.core.api.asset import router as asset_router
+from apps.core.api.alert import router as alert_router
 
 # Setup structured logging
 setup_logging()
@@ -214,12 +216,12 @@ def create_app() -> FastAPI:
     # Include API Routers with full domain prefixes and monitoring
     app.include_router(health_router, prefix="/health", tags=["Monitoring"])
     app.include_router(health_router, prefix="/api/v1/health", tags=["Monitoring"])
-    app.include_router(ws.router, tags=["WebSocket Telemetry"])
+    app.include_router(ws.router, prefix="/api/v1", tags=["WebSocket Telemetry"])
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
     app.include_router(stage6_user_router, prefix="/api/v1/stage6-users", tags=["Stage 6 Users"])
-    app.include_router(industrial.router, prefix="/api/v1/industrial", tags=["Industrial IoT"])
-    app.include_router(industrial.router, prefix="/api/v1", tags=["Industrial IoT compatibility"])
+    app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
+    app.include_router(alert_router, prefix="/api/v1/alerts", tags=["Alerts"])
     app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
     app.include_router(ai_proxy.router, prefix="/api/v1/ai", tags=["AI Processing Gateway"])
 

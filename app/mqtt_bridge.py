@@ -85,7 +85,7 @@ class MQTTBridge:
         return 0
 
     async def handle_message(self, topic: str, payload: bytes) -> None:
-        """Parses the telemetry message and pushes it onto the shared queue."""
+        """Parses the telemetry message and pushes it onto the Redis event bus."""
         try:
             decoded_payload = payload.decode("utf-8")
             json_payload = json.loads(decoded_payload)
@@ -95,8 +95,9 @@ class MQTTBridge:
                 "payload": json_payload
             }
             
-            await sensor_queue.put(message)
-            logger.debug("Telemetry message queued", topic=topic, current_size=sensor_queue.qsize())
+            from shared.event_bus import publish_telemetry
+            await publish_telemetry(message)
+            logger.debug("Telemetry message published to Redis", topic=topic)
         except UnicodeDecodeError as exc:
             logger.error("Failed to decode payload as UTF-8", topic=topic, error=str(exc))
         except json.JSONDecodeError as exc:
