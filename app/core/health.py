@@ -1,56 +1,39 @@
-"""
-Advanced Liveness & Readiness Probes Module.
-
-Provides enterprise-grade health monitoring endpoints:
-- /health/live: Liveness probe (is the process running?)
-- /health/ready: Readiness probe (can we serve traffic?)
-
-The readiness probe checks downstream dependencies (database, cache, etc.)
-and returns 503 Service Unavailable if any are unhealthy.
-
-This enables Kubernetes/Docker orchestrators to make intelligent
-routing and restart decisions.
-
-Note: The router is included with the API prefix in app/main.py:
-    app.include_router(health_router, prefix=settings.API_PREFIX)
-"""
-import logging
-from typing import Dict, Any
+"""Low-cost liveness and dependency readiness probes."""
+from __future__ import annotations
+import time
+from typing import Any, Dict
 from fastapi import APIRouter, Response, status
-
+from app.core.config import settings
 router = APIRouter(tags=["Monitoring"])
-logger = logging.getLogger("app.health")
-
 
 async def check_database_connection() -> bool:
-    """
-    Phase 4 & Phase 1 database readiness probe.
-
-    Performs a lightweight `SELECT 1` via the async connection engine.
-    Returns False if the industrial database is unreachable.
-    """
     try:
         from app.core.database.engine import verify_database_connection
-        return await verify_database_connection(max_retries=1, retry_interval=0.1, timeout=2.0)
-    except Exception as exc:
-        logger.warning(f"Database readiness check failed: {exc}")
+        return await verify_database_connection(max_retries=1, retry_interval=0.05, timeout=2.0)
+    except Exception:
         return False
 
+def _mqtt_connected() -> bool:
+    try:
+        from app.services.mqtt_bridge import mqtt_bridge_instance
+        return bool(mqtt_bridge_instance.connected)
+    except Exception:
+        return False
 
-@router.get("/live", status_code=status.HTTP_200_OK)
+@router.get("/live")
 async def liveness_probe() -> Dict[str, str]:
-    """Indicates if the app container is alive (restarts container if this fails)."""
+    # Keep the established public contract; HTTP 200 is the probe signal.
     return {"status": "alive"}
 
-
-@router.get("/ready", status_code=status.HTTP_200_OK)
+@router.get("/ready")
 async def readiness_probe(response: Response) -> Dict[str, Any]:
-    """Indicates if downstream dependencies (DB, cache) are fully healthy."""
+    started = time.perf_counter()
     db_ok = await check_database_connection()
-
-    if not db_ok:
+    mqtt_ok = _mqtt_connected()
+    checks = {"database": "healthy" if db_ok else "unhealthy", "mqtt": "healthy" if mqtt_ok else "degraded"}
+    # MQTT is allowed to be unavailable in development; production readiness
+    # still requires the database and reports the edge link explicitly.
+    ready = db_ok and (mqtt_ok or not settings.is_production)
+    if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        logger.critical("Readiness probe failed: Database connectivity is offline.")
-        return {"status": "unready", "checks": {"database": "unhealthy"}}
-
-    return {"status": "ready", "checks": {"database": "healthy"}}
+    return {"status": "ready" if ready else "not_ready", "checks": checks, "latency_ms": round((time.perf_counter()-started)*1000, 2)}

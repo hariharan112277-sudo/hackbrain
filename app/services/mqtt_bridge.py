@@ -50,6 +50,11 @@ class MQTTBridge:
 
         self._connected = False
         self._reconnect_task: Optional[asyncio.Task] = None
+        self._stopping = False
+
+    @property
+    def connected(self) -> bool:
+        return self._connected
 
     def on_connect(self, client: MQTTClient, flags: int, rc: int, properties: Any) -> None:
         """Callback invoked when connection to the broker is established."""
@@ -140,6 +145,7 @@ class MQTTBridge:
 
     async def start(self) -> None:
         """Starts the MQTT Client and establishes connection to the broker."""
+        self._stopping = False
         try:
             logger.info("Connecting to MQTT Broker...", host=self.host, port=self.port)
             await self.client.connect(self.host, self.port, keepalive=self.keepalive)
@@ -148,8 +154,9 @@ class MQTTBridge:
             self.trigger_reconnect()
 
     async def stop(self) -> None:
-        """Gracefully disconnects and stops the MQTT client."""
-        logger.info("Shutting down MQTT Bridge...")
+        """Flush the local buffer, cancel reconnects, then disconnect cleanly."""
+        self._stopping = True
+        logger.info("mqtt_bridge_stopping", buffered_messages=sensor_queue.qsize())
         if self._reconnect_task and not self._reconnect_task.done():
             self._reconnect_task.cancel()
         try:

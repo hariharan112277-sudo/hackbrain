@@ -1,35 +1,20 @@
-# Multi-stage production build targeting lightweight, secure running containers
+# syntax=docker/dockerfile:1.7
 FROM python:3.11-slim AS builder
-
 WORKDIR /build
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN python -m pip install --upgrade pip && pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install --no-cache-dir poetry
-
-COPY pyproject.toml poetry.lock ./
-RUN poetry export --without-hashes --format=requirements.txt > requirements.txt \
-    && pip install --no-cache-dir --user -r requirements.txt
-
-# Final execution stage
 FROM python:3.11-slim AS runner
-
-WORKDIR /app
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/root/.local/bin:$PATH" \
-    ENVIRONMENT=production
-
-COPY --from=builder /root/.local /root/.local
-COPY . /app
-
+WORKDIR /workspace
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/workspace
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 curl && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system --gid 10001 iob && adduser --system --uid 10001 --ingroup iob iob
+COPY --from=builder /install /usr/local
+COPY . .
+RUN chown -R 10001:10001 /workspace
+USER 10001:10001
 EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl --fail http://localhost:8000/api/v1/health/live || exit 1
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 CMD curl -fsS http://localhost:8000/api/v1/health/live || exit 1
+ENTRYPOINT ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

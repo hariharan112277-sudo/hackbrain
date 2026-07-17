@@ -65,56 +65,41 @@ logger = structlog.get_logger("app.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager for startup/shutdown events with sequential check."""
-    logger.info("io_application_starting", version=settings.APP_VERSION)
-
-    # Stage 1: Verify async database connection pool (Section 4 & Section 6)
+    """Single ordered lifecycle: DB, edge transport, distributors, then traffic."""
+    logger.info("io_startup_begin", version=settings.APP_VERSION)
+    from app.core.database.engine import verify_database_connection
+    from app.services.mqtt_bridge import mqtt_bridge_instance
+    from app.api.ws import start_distributor, stop_distributor
+    db_ok = await verify_database_connection(max_retries=3, retry_interval=1.0, timeout=5.0)
+    if not db_ok and settings.is_production:
+        raise RuntimeError("database liveness verification failed in production")
+    logger.info("io_database_ready", healthy=db_ok)
     try:
-        from app.core.database.engine import verify_database_connection
-        db_ok = await verify_database_connection(max_retries=3, retry_interval=1.0, timeout=5.0)
-        if db_ok:
-            logger.info("io_database_pool_verified")
-        else:
-            logger.warning("io_database_pool_unverified_fallback")
-    except Exception as exc:
-        logger.warning("io_database_check_skipped", error=str(exc))
-
-    # Stage 2: Verify Redis connection pool (Section 4 & Section 9)
-    try:
-        from shared.event_bus import redis_pool
-        await asyncio.wait_for(redis_pool.ping(), timeout=5.0)
-        logger.info("io_redis_cache_ready")
-    except Exception as exc:
-        logger.warning("io_redis_check_skipped_or_offline", error=str(exc))
-
-    # Stage 3: Start MQTT bridge and WebSocket queue distributor (Section 8 & Section 9)
-    try:
-        from app.services.mqtt_bridge import mqtt_bridge_instance
-        from app.api.ws import start_distributor
-
         await mqtt_bridge_instance.start()
         start_distributor()
-        logger.info("io_mqtt_and_distributor_started")
-    except Exception as e:
-        logger.error("io_startup_services_failed", error=str(e))
-
+        logger.info("io_edge_and_websocket_ready", mqtt=mqtt_bridge_instance.connected)
+    except Exception:
+        logger.exception("io_transport_start_failed")
+        if settings.is_production:
+            raise
     logger.info("io_startup_complete")
-
-    yield
-
-    # Shutdown: Clean up connections, flush logs, etc.
-    logger.info("io_application_shutting_down")
     try:
-        from app.services.mqtt_bridge import mqtt_bridge_instance
-        from app.api.ws import stop_distributor
-        from shared.event_bus import redis_pool
-
+        yield
+    finally:
+        logger.info("io_shutdown_begin")
         await stop_distributor()
         await mqtt_bridge_instance.stop()
-        await redis_pool.aclose()
-        logger.info("io_mqtt_and_distributor_stopped")
-    except Exception as e:
-        logger.error("io_shutdown_services_failed", error=str(e))
+        try:
+            from shared.event_bus import redis_pool
+            await redis_pool.aclose()
+        except Exception:
+            logger.warning("io_redis_close_skipped", exc_info=True)
+        try:
+            from app.core.database.engine import engine
+            await engine.dispose()
+        except Exception:
+            logger.warning("io_database_pool_close_skipped", exc_info=True)
+        logger.info("io_shutdown_complete")
 
 
 def create_app() -> FastAPI:
