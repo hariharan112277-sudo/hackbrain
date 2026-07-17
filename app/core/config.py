@@ -92,9 +92,24 @@ class Settings(BaseSettings):
 
     # Integration limits and feature switches
     DEFAULT_PAGE_LIMIT: int = 100
+    MAX_PAGE_LIMIT: int = 100
     MAX_HISTORICAL_WINDOW_DAYS: int = 30
     ENABLE_REALTIME_STREAMING: bool = True
     ENFORCE_OPC_QUALITY_CHECKS: bool = True
+
+    # Phase 4 — Frontend Integration & API Contract Validation
+    # R-4.5.1: Strict payload size restriction on the AI Gateway interface.
+    AI_GATEWAY_MAX_PAYLOAD_BYTES: int = 10 * 1024 * 1024  # 10MB
+    # R-4.6.1: Optional WebSocket broadcast batching window in milliseconds.
+    # 0 keeps legacy per-message broadcasting (backwards compatible).
+    WS_BROADCAST_BATCH_MS: int = 0
+    WS_BROADCAST_BATCH_MAX: int = 50
+    # R-4.3.1: Issue the access token as a secure HTTP-only cookie alongside
+    # the JSON body so browser clients can avoid script-accessible storage.
+    AUTH_COOKIE_ENABLED: bool = True
+    AUTH_COOKIE_NAME: str = "iob_access_token"
+    AUTH_COOKIE_SECURE: bool = False  # set True behind HTTPS in production
+    AUTH_COOKIE_SAMESITE: str = "lax"
 
     # AI and frontend services
     AI_SERVICE_URL: str = "http://localhost:8001"

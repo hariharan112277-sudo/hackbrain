@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import error_envelope
 from app.database import get_db
 from app.deps import UserContext, get_current_user, require_role
+from app.core.timeutils import utc_iso  # Phase 4 (R-4.4.1)
 from app.models.alarm import Alarm
 from app.models.asset import Asset, Telemetry
 
@@ -42,7 +43,12 @@ def get_assets(
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return every asset together with the status from its latest telemetry row."""
+    """Return every asset together with the status from its latest telemetry row.
+
+    Phase 4 contract alignment: responses use the frontend envelope
+    ``{"items": [...], "total_count": n, "critical_count": n}`` expected by
+    the asset registry UI component (see tests/test_assets.py).
+    """
     latest_telemetry = _latest_telemetry_subquery(db)
 
     results = (
@@ -55,7 +61,7 @@ def get_assets(
         .all()
     )
 
-    return [
+    items = [
         {
             "asset_id": asset.asset_id,
             "name": asset.name,
@@ -65,6 +71,12 @@ def get_assets(
         }
         for asset, telemetry_status in results
     ]
+
+    return {
+        "items": items,
+        "total_count": len(items),
+        "critical_count": sum(1 for item in items if item["criticality"] == "critical"),
+    }
 
 
 @router.get("/assets/{asset_id}")
@@ -119,7 +131,7 @@ def get_asset_detail(
         "criticality": asset.criticality,
         "latest_telemetry": (
             {
-                "ts": latest_telemetry.ts.isoformat(),
+                "ts": utc_iso(latest_telemetry.ts),
                 "temperature_c": _as_float(latest_telemetry.temperature_c),
                 "pressure_bar": _as_float(latest_telemetry.pressure_bar),
                 "status": latest_telemetry.status or "unknown",
@@ -145,7 +157,7 @@ def get_asset_detail(
                 "severity": alarm.severity,
                 "code": alarm.code,
                 "message": alarm.message,
-                "ts": alarm.ts.isoformat(),
+                "ts": utc_iso(alarm.ts),
             }
             for alarm in open_alarms
         ],
@@ -185,7 +197,7 @@ def get_asset_telemetry(
 
     return [
         {
-            "ts": row.ts.isoformat(),
+            "ts": utc_iso(row.ts),
             "metrics": {
                 "temperature_c": _as_float(row.temperature_c),
                 "pressure_bar": _as_float(row.pressure_bar),
@@ -223,7 +235,7 @@ def get_alerts(
             "severity": alarm.severity,
             "code": alarm.code,
             "message": alarm.message,
-            "ts": alarm.ts.isoformat(),
+            "ts": utc_iso(alarm.ts),
             "resolved": alarm.resolved,
         }
         for alarm in alarms
@@ -251,6 +263,7 @@ def resolve_alarm(
 
     return {
         "alarm_id": alarm.alarm_id,
+        "status": "resolved",
         "resolved": True,
-        "resolved_at": alarm.resolved_at.isoformat(),
+        "resolved_at": utc_iso(alarm.resolved_at),
     }

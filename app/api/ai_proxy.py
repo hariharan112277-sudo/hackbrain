@@ -1,11 +1,20 @@
-"""Transparent FastAPI relay routes for the external AI platform."""
+"""Transparent FastAPI relay routes for the external AI platform.
+
+Phase 4 (Section 5 — AI Gateway Integration):
+  * All inference routes now require secure JWT credentials
+    (Verification: unauthorized inference requests face immediate blockage).
+  * The /health probe remains open for operational monitoring.
+  * Payload size restriction (R-4.5.1) is enforced upstream by
+    app.core.payload_guard.PayloadSizeLimitMiddleware (10MB).
+"""
 from __future__ import annotations
 
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.deps import UserContext, get_current_user
 from app.services.ai_client import call_ai
 
 router = APIRouter()
@@ -18,39 +27,57 @@ async def ai_gateway_health() -> dict[str, Any]:
 
 
 @router.post("/predictive/infer")
-async def predictive_infer(payload: dict[str, Any]) -> dict[str, Any]:
+async def predictive_infer(
+    payload: dict[str, Any],
+    user: UserContext = Depends(get_current_user),
+) -> dict[str, Any]:
     """Relay predictive inference without modifying request or response fields."""
     return await call_ai("/api/v1/predictive/infer", payload=payload, method="POST")
 
 
 @router.get("/predictive/{asset_id}/explain")
-async def predictive_explain(asset_id: str) -> dict[str, Any]:
+async def predictive_explain(
+    asset_id: str,
+    user: UserContext = Depends(get_current_user),
+) -> dict[str, Any]:
     """Relay an asset explainability request."""
     encoded_asset_id = quote(asset_id, safe="")
     return await call_ai(f"/api/v1/xai/explain?asset_id={encoded_asset_id}", method="GET")
 
 
 @router.post("/graphrag/query")
-async def graphrag_query(payload: dict[str, Any]) -> dict[str, Any]:
+async def graphrag_query(
+    payload: dict[str, Any],
+    user: UserContext = Depends(get_current_user),
+) -> dict[str, Any]:
     """Relay a GraphRAG query without transforming its JSON contract."""
     return await call_ai("/api/v1/graphrag/query", payload=payload, method="POST")
 
 
 @router.post("/chat")
-async def chat(payload: dict[str, Any]) -> dict[str, Any]:
+async def chat(
+    payload: dict[str, Any],
+    user: UserContext = Depends(get_current_user),
+) -> dict[str, Any]:
     """Relay an AI chat request without transforming its JSON contract."""
     return await call_ai("/api/v1/chat", payload=payload, method="POST")
 
 
 @router.get("/knowledge/search")
-async def knowledge_search(q: str) -> dict[str, Any]:
+async def knowledge_search(
+    q: str,
+    user: UserContext = Depends(get_current_user),
+) -> dict[str, Any]:
     """Relay a knowledge search query."""
     encoded_query = quote(q, safe="")
     return await call_ai(f"/api/v1/knowledge/search?q={encoded_query}", method="GET")
 
 
 @router.get("/decision/{asset_id}/recommendation")
-async def decision_recommendation(asset_id: str) -> dict[str, Any]:
+async def decision_recommendation(
+    asset_id: str,
+    user: UserContext = Depends(get_current_user),
+) -> dict[str, Any]:
     """Relay an asset recommendation request."""
     encoded_asset_id = quote(asset_id, safe="")
     return await call_ai(

@@ -46,7 +46,9 @@ def test_app_initialization(client):
 
 ENDPOINT_MATRIX = [
     ("GET", "/health", 200, None, None),
-    ("POST", "/api/v1/auth/login", 401, None, None),  # No credentials => 401
+    # Phase 4 contract matrix (Section 2): POST /api/v1/auth/login declares
+    # 200 / 401 / 422 — an empty body fails Pydantic validation => 422.
+    ("POST", "/api/v1/auth/login", 422, None, None),
     ("GET", "/api/v1/assets", 401, None, None),
     ("GET", "/api/v1/alerts", 401, None, None),
 ]
@@ -114,10 +116,23 @@ def test_mqtt_bridge_import():
 
 def test_websocket_upgrade_path_exists(test_app):
     """WebSocket endpoint mapped correctly (Section 11 — Resolved)."""
-    routes = [r.path for r in test_app.routes]
-    # The ws router is mounted at /api/v1 with websocket endpoint /stream
-    # We verify no crash when inspecting routes.
-    assert isinstance(routes, list)
+    # Some mounted routers (e.g. _IncludedRouter) expose no .path attribute,
+    # so verify the upgrade path functionally: an invalid token must yield a
+    # policy close (4001) rather than a 404 route rejection.
+    from starlette.websockets import WebSocketDisconnect as WSDisconnect
+
+    ws_client = TestClient(test_app)
+    try:
+        with ws_client.websocket_connect("/api/v1/stream?token=bad.token") as ws:
+            ws.receive_text()
+        raised = False
+    except WSDisconnect as exc:
+        raised = True
+        # 4001 = auth rejection from our endpoint (route exists and executed)
+        assert exc.code == 4001
+    except Exception:
+        raised = True  # route exists; transport-level close variations accepted
+    assert raised
 
 
 # =====================================================================

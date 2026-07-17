@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import UserContext, get_current_user
+from app.core.timeutils import utc_iso  # Phase 4 (R-4.4.1)
 from app.models.alarm import Alarm
 from app.models.asset import Asset, Telemetry
 
@@ -84,7 +85,7 @@ def get_dashboard_summary(
                 "asset_id": alarm.asset_id,
                 "severity": alarm.severity,
                 "message": alarm.message,
-                "ts": alarm.ts.isoformat(),
+                "ts": utc_iso(alarm.ts),
             }
             for alarm in recent_alarms
         ],

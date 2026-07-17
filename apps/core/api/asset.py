@@ -1,5 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, status
+from app.core.config import settings
 from app.deps import get_current_user, UserContext
 from app.services.industrial_service import IndustrialService
 from app.core.dependencies import get_industrial_service
@@ -8,13 +9,23 @@ router = APIRouter()
 
 @router.get("/", response_model=List[dict])
 async def list_assets(
+    limit: int = Query(
+        settings.DEFAULT_PAGE_LIMIT,
+        ge=1,
+        le=settings.MAX_PAGE_LIMIT,
+        description="Maximum number of assets to return (R-4.2.1: capped at 100)",
+    ),
+    offset: int = Query(0, ge=0, description="Number of assets to skip"),
     service: IndustrialService = Depends(get_industrial_service),
     user: UserContext = Depends(get_current_user)
 ):
     """
     Retrieve all assets with their latest status.
+
+    Phase 4 (R-4.2.1): list responses are bounded by an explicit default
+    limit of 100 items to safeguard client application memory.
     """
-    return await service.get_all_machines()
+    return await service.get_all_machines(limit=limit, offset=offset)
 
 @router.get("/{asset_id}", response_model=dict)
 async def get_asset(
@@ -30,7 +41,7 @@ async def get_asset(
 @router.get("/{asset_id}/telemetry", response_model=List[dict])
 async def get_asset_telemetry(
     asset_id: str,
-    range: str = Query("1h", regex="^(1h|24h|7d)$"),
+    range: str = Query("1h", pattern="^(1h|24h|7d)$"),
     service: IndustrialService = Depends(get_industrial_service),
     user: UserContext = Depends(get_current_user)
 ):

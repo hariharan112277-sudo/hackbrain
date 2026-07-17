@@ -23,9 +23,35 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.api import ai_proxy
+from app.core.security import create_access_token
 from app.services import ai_client
 
 client = TestClient(app)
+
+# Phase 4 (Section 5): the AI Gateway now requires secure JWT credentials on
+# every inference route, so relay tests authenticate with a real signed token.
+# The token is minted lazily so it is always signed with the SECRET_KEY that
+# is active at request time (conftest may swap the key per-session).
+class _LazyAuthHeaders(dict):
+    def __iter__(self):
+        self._refresh()
+        return super().__iter__()
+
+    def _refresh(self):
+        self["Authorization"] = (
+            f"Bearer {create_access_token('test-user-ai', 'engineer')}"
+        )
+
+    def keys(self):
+        self._refresh()
+        return super().keys()
+
+    def items(self):
+        self._refresh()
+        return super().items()
+
+
+AUTH_HEADERS = _LazyAuthHeaders()
 
 # Part 2.3's frozen, real (not placeholder) predictive/infer response shape.
 FROZEN_PREDICTIVE_RESPONSE = {
@@ -95,7 +121,7 @@ def test_predictive_infer_relays_frozen_shape_byte_for_byte(monkeypatch):
     monkeypatch.setattr(ai_proxy, "call_ai", fake_call_ai)
 
     body = {"asset_id": "asset-101", "component_id": "asset-101-bearing-de"}
-    response = client.post("/api/v1/ai/predictive/infer", json=body)
+    response = client.post("/api/v1/ai/predictive/infer", json=body, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json() == FROZEN_PREDICTIVE_RESPONSE
@@ -111,7 +137,7 @@ def test_predictive_explain_relays_query_and_response(monkeypatch):
 
     monkeypatch.setattr(ai_proxy, "call_ai", fake_call_ai)
 
-    response = client.get("/api/v1/ai/predictive/asset-101/explain")
+    response = client.get("/api/v1/ai/predictive/asset-101/explain", headers=AUTH_HEADERS)
     assert response.status_code == 200
     assert response.json()["data"]["asset_id"] == "asset-101"
 
@@ -123,7 +149,7 @@ def test_graphrag_query_pure_relay(monkeypatch):
         return {"answer": "42", "sources": []}
 
     monkeypatch.setattr(ai_proxy, "call_ai", fake_call_ai)
-    response = client.post("/api/v1/ai/graphrag/query", json={"query": "why?"})
+    response = client.post("/api/v1/ai/graphrag/query", json={"query": "why?"}, headers=AUTH_HEADERS)
     assert response.status_code == 200
     assert response.json() == {"answer": "42", "sources": []}
 
@@ -134,7 +160,7 @@ def test_chat_pure_relay(monkeypatch):
         return {"reply": "hello"}
 
     monkeypatch.setattr(ai_proxy, "call_ai", fake_call_ai)
-    response = client.post("/api/v1/ai/chat", json={"message": "hi"})
+    response = client.post("/api/v1/ai/chat", json={"message": "hi"}, headers=AUTH_HEADERS)
     assert response.status_code == 200
     assert response.json() == {"reply": "hello"}
 
@@ -145,7 +171,7 @@ def test_knowledge_search_pure_relay(monkeypatch):
         return {"results": []}
 
     monkeypatch.setattr(ai_proxy, "call_ai", fake_call_ai)
-    response = client.get("/api/v1/ai/knowledge/search", params={"q": "bearing"})
+    response = client.get("/api/v1/ai/knowledge/search", params={"q": "bearing"}, headers=AUTH_HEADERS)
     assert response.status_code == 200
     assert response.json() == {"results": []}
 
@@ -156,7 +182,7 @@ def test_decision_recommendation_pure_relay(monkeypatch):
         return {"recommendation": "replace bearing"}
 
     monkeypatch.setattr(ai_proxy, "call_ai", fake_call_ai)
-    response = client.get("/api/v1/ai/decision/asset-101/recommendation")
+    response = client.get("/api/v1/ai/decision/asset-101/recommendation", headers=AUTH_HEADERS)
     assert response.status_code == 200
     assert response.json() == {"recommendation": "replace bearing"}
 
@@ -184,6 +210,6 @@ def test_predictive_infer_ai_unavailable_relayed_through_gateway(monkeypatch):
 
     monkeypatch.setattr(ai_proxy, "call_ai", unavailable_call_ai)
 
-    response = client.post("/api/v1/ai/predictive/infer", json={"asset_id": "asset-101"})
+    response = client.post("/api/v1/ai/predictive/infer", json={"asset_id": "asset-101"}, headers=AUTH_HEADERS)
     assert response.status_code == 200
     assert response.json()["error"]["code"] == "AI_UNAVAILABLE"

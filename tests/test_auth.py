@@ -136,9 +136,12 @@ def test_login_invalid_credentials(mock_db_session):
     assert response.status_code == 401
     data = response.json()
 
-    # FastAPI HTTPException wraps the detail dict under the "detail" key
-    assert "detail" in data
-    assert data["detail"]["error_code"] == "INVALID_CREDENTIALS"
+    # Phase 4 (Section 8 — Error Handling & API Consistency):
+    # the global exception handler flattens error_envelope output into the
+    # platform-standard structure {"success": false, "error_code": ..., ...}.
+    assert data["success"] is False
+    assert data["error_code"] == "INVALID_CREDENTIALS"
+    assert data["message"] == "Email or password is incorrect"
 
 
 def test_login_nonexistent_user(mock_db_session):
@@ -157,7 +160,9 @@ def test_login_nonexistent_user(mock_db_session):
 
     assert response.status_code == 401
     data = response.json()
-    assert data["detail"]["error_code"] == "INVALID_CREDENTIALS"
+    # Standardized Phase 4 error envelope (no user enumeration)
+    assert data["success"] is False
+    assert data["error_code"] == "INVALID_CREDENTIALS"
 
 
 # =====================================================================

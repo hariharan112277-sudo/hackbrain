@@ -28,6 +28,7 @@ from app.core.logging_config import setup_logging
 from app.core.security import SecurityHeadersMiddleware
 from app.core.middleware import CorrelationIdMiddleware
 from app.core.tenant_isolation import TenantIsolationMiddleware
+from app.core.payload_guard import PayloadSizeLimitMiddleware
 from app.core.exceptions import (
     IOBException,
     ResourceNotFoundError,
@@ -119,12 +120,22 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(TenantIsolationMiddleware)
+    # Phase 4 (R-4.5.1): 10MB payload restriction on the AI Gateway prefix.
+    app.add_middleware(
+        PayloadSizeLimitMiddleware,
+        max_bytes=settings.AI_GATEWAY_MAX_PAYLOAD_BYTES,
+        prefix="/api/v1/ai",
+    )
+    # Phase 4 (Section 9 — CORS & Cross-Origin Configuration):
+    # Explicit method/header allow-lists instead of wildcards so that only
+    # verified frontend origins and required auth headers are permitted.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Correlation-ID", "X-Requested-With"],
+        expose_headers=["X-Correlation-ID"],
     )
 
     # Global & Standard Exception Handlers
@@ -229,6 +240,9 @@ def create_app() -> FastAPI:
     app.include_router(stage6_user_router, prefix="/api/v1/stage6-users", tags=["Stage 6 Users"])
     app.include_router(asset_router, prefix="/api/v1/assets", tags=["Assets"])
     app.include_router(alert_router, prefix="/api/v1/alerts", tags=["Alerts"])
+    # Phase 4 wiring fix: the Stage 3 industrial router was imported but never
+    # mounted, leaving /api/v1/industrial/* unreachable (404) for frontends.
+    app.include_router(industrial.router, prefix="/api/v1/industrial", tags=["Industrial Core"])
     app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
     app.include_router(ai_proxy.router, prefix="/api/v1/ai", tags=["AI Processing Gateway"])
 
