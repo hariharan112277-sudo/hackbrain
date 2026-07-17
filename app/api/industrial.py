@@ -1,6 +1,9 @@
 """Core industrial REST endpoints — Track A (Hariharan), Stage 3."""
 
+from typing import List, Optional, Dict
+from uuid import UUID
 from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc, func

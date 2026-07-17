@@ -12,5 +12,36 @@ services:
       - LOG_LEVEL=DEBUG
       - JSON_LOGS=false
       - SECRET_KEY=DEVELOPMENT_ONLY_SECRET_PLEASE_REPLACE_IN_PRODUCTION
+      - USE_STUB_REPOSITORIES=false
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@postgres:5432/iob
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - IOB_MQTT_URL=mqtt://mosquitto:1883
     volumes:
       - .:/app
+    depends_on:
+      - postgres
+      - mosquitto
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=iob
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/iob_core_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed_users.sql:/docker-entrypoint-initdb.d/02_seed_users.sql:ro
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+volumes:
+  pgdata:

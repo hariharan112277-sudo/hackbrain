@@ -23,7 +23,7 @@ from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
 )
-from app.api import auth, users, industrial, dashboard
+from app.api import auth, users, industrial, dashboard, ws
 
 
 # Setup structured logging
@@ -36,22 +36,34 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
     logger.info("io_application_starting", version=settings.APP_VERSION)
     
-    # Resolve the repository strategy before accepting any request. This is the
-    # final runtime boundary that prevents development providers from reaching
-    # a production process.
-    bootstrap_repository_subsystem()
-    logger.info(
-        "io_startup_complete",
-        repository_strategy=(
-            "stub" if settings.USE_STUB_REPOSITORIES else "production"
-        ),
-    )
-
+    # Startup: Initialize connections, warm caches, etc.
+    # Start MQTT bridge and WebSocket queue distributor
     try:
-        yield
-    finally:
-        shutdown_repository_subsystem()
-        logger.info("io_application_shutting_down")
+        from app.services.mqtt_bridge import mqtt_bridge_instance
+        from app.api.ws import start_distributor
+        
+        await mqtt_bridge_instance.start()
+        start_distributor()
+        logger.info("io_mqtt_and_distributor_started")
+    except Exception as e:
+        logger.error("io_startup_services_failed", error=str(e))
+        
+    logger.info("io_startup_complete")
+    
+    yield
+    
+    # Shutdown: Clean up connections, flush logs, etc.
+    logger.info("io_application_shutting_down")
+    try:
+        from app.services.mqtt_bridge import mqtt_bridge_instance
+        from app.api.ws import stop_distributor
+        
+        await stop_distributor()
+        await mqtt_bridge_instance.stop()
+        logger.info("io_mqtt_and_distributor_stopped")
+    except Exception as e:
+        logger.error("io_shutdown_services_failed", error=str(e))
+
 
 
 def create_app() -> FastAPI:
@@ -135,6 +147,7 @@ def create_app() -> FastAPI:
         return {"status": "ready", "service": settings.APP_NAME}
 
     # Include API Routers
+    app.include_router(ws.router, tags=["WebSocket Telemetry"])
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
     app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
     app.include_router(industrial.router, prefix="/api/v1/industrial", tags=["Industrial IoT"])

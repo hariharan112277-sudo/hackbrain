@@ -1,68 +1,78 @@
-"""HTTP client used by the transparent AI gateway routes."""
+"""
+AI Client Service
+Phase 5: Relay client for communicating with the external AI service platform.
+"""
 
-from __future__ import annotations
-
-from typing import Any, Literal, Optional
-
+from typing import Any, Optional
 import httpx
-from fastapi import HTTPException, status
-
+import structlog
 from app.core.config import settings
 
-_HTTPMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
+logger = structlog.get_logger("app.services.ai_client")
 
 
 async def call_ai(
-    path: str,
-    *,
+    endpoint: str,
     payload: Optional[dict[str, Any]] = None,
-    method: _HTTPMethod = "POST",
+    method: str = "GET",
 ) -> dict[str, Any]:
-    """Call the configured AI service and return its JSON object response.
-
-    Transport failures are converted to gateway errors. Upstream HTTP status
-    codes are retained so API consumers can distinguish validation failures
-    from unavailable infrastructure.
     """
-    if not path.startswith("/"):
-        raise ValueError("AI service paths must start with '/'")
+    Transparently relays an API call to the external enterprise AI service.
 
-    url = f"{settings.AI_SERVICE_URL.rstrip('/')}{path}"
+    Parameters:
+        endpoint: Destination path relative to settings.AI_SERVICE_URL (e.g. '/api/v1/chat').
+        payload:  Optional JSON dictionary payload for POST/PUT.
+        method:   HTTP method string (GET, POST, etc.).
+
+    Returns:
+        JSON response parsed from the external service.
+    """
+    # Build complete destination URL
+    base_url = settings.AI_SERVICE_URL.rstrip("/")
+    target_path = "/" + endpoint.lstrip("/")
+    url = f"{base_url}{target_path}"
+
+    logger.info("Relaying request to external AI service", url=url, method=method)
+
     try:
         async with httpx.AsyncClient(timeout=settings.AI_SERVICE_TIMEOUT) as client:
-            response = await client.request(method, url, json=payload)
+            if method.upper() == "POST":
+                response = await client.post(url, json=payload)
+            elif method.upper() == "PUT":
+                response = await client.put(url, json=payload)
+            elif method.upper() == "DELETE":
+                response = await client.delete(url)
+            else:
+                response = await client.get(url)
+
             response.raise_for_status()
-    except httpx.TimeoutException as exc:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="AI service request timed out",
-        ) from exc
+            # Try parsing response JSON
+            return response.json()
+
     except httpx.HTTPStatusError as exc:
-        detail: Any
-        try:
-            detail = exc.response.json()
-        except ValueError:
-            detail = exc.response.text or "AI service rejected the request"
-        raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
-    except httpx.RequestError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI service is unavailable",
-        ) from exc
-
-    try:
-        result = response.json()
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI service returned a non-JSON response",
-        ) from exc
-    if not isinstance(result, dict):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI service returned an invalid response object",
+        logger.error(
+            "AI service returned HTTP error status",
+            status_code=exc.response.status_code,
+            url=url,
+            response_text=exc.response.text,
         )
-    return result
-
-
-__all__ = ["call_ai"]
+        return {
+            "success": False,
+            "error": "AI_SERVICE_HTTP_ERROR",
+            "status_code": exc.response.status_code,
+            "message": f"AI service returned error: {exc.response.text}",
+        }
+    except httpx.RequestError as exc:
+        logger.error("AI service connectivity issue", url=url, error=str(exc))
+        return {
+            "success": False,
+            "error": "AI_SERVICE_UNAVAILABLE",
+            "message": f"Could not connect to external AI service: {exc}",
+        }
+    except Exception as exc:
+        logger.error("Unexpected error in AI client service", url=url, error=str(exc))
+        return {
+            "success": False,
+            "error": "INTERNAL_CLIENT_ERROR",
+            "message": str(exc),
+        }

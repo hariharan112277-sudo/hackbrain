@@ -34,8 +34,16 @@ argon2-cffi>=21.3.0
 # passlib 1.7.x is incompatible with bcrypt 4.1+ backend detection.
 bcrypt>=4.0.0,<4.1.0
 
+# Structured logging (app/core/logging_config.py, app/main.py, app/services/auth_service.py)
+structlog>=24.1.0
+
+# PyJWT — used directly by tests/test_deps_stage0.py alongside python-jose in app.core.security
+PyJWT>=2.8.0
+
 # Tests
 pytest>=7.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
 
 # --- Phase 4 Enterprise Backend API Dependencies ---
 # OAuth2 form parsing & multipart uploads
