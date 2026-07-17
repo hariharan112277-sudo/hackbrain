@@ -1,5 +1,0 @@
-load_profile,message_rate_msg_sec,cpu_utilization_percent,active_ram_footprint_mb
-Standard Test Baseline,10,1.2,210
-Medium Factory Scale,100,8.4,1126
-Enterprise Processing Peak,1000,38.0,4915
-Extreme Load Boundary,10000,98.0,14540

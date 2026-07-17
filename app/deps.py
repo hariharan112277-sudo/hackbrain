@@ -41,6 +41,7 @@ from typing import Annotated, Any, Callable, Dict, Generator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ── Internal imports (existing wiring) ──────────────────────────────────
 from app.database import get_db
@@ -52,7 +53,7 @@ from app.core.exceptions import AuthenticationError
 # =====================================================================
 
 # Convenient annotated alias: `db: DBSession` in route signatures.
-DBSession = Annotated[Session, Depends(get_db)]
+DBSession = Annotated[AsyncSession, Depends(get_db)]
 
 
 # =====================================================================

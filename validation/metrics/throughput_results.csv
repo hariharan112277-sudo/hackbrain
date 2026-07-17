@@ -1,6 +1,0 @@
-simulated_scale,target_message_load_msg_sec,pipeline_transit_delay_ms,cpu_load_percent,ram_footprint_allocation_mb
-10 Devices Baseline,10,11.2,1.2,210
-50 Devices Cluster,50,12.8,4.1,512
-100 Devices Factory,100,14.5,8.4,1126
-250 Devices Enterprise,250,18.2,19.5,2457
-500 Devices Stress Boundary,500,26.4,37.1,5017

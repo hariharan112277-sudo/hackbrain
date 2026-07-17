@@ -1,3 +1,0 @@
-quality_rules:
-  z_score_outlier_threshold: 3.5
-  required_opc_quality_code: 192

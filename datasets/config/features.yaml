@@ -1,8 +1,0 @@
-features:
-  rolling_windows_minutes: [5, 15, 60]
-  categorical_encodings:
-    current_mode:
-      IDLE: 0
-      PRODUCTION: 1
-      MAINTENANCE: 2
-      FAULT: 3
