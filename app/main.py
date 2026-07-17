@@ -3,6 +3,11 @@ Industrial Operating Brain (IOB) - Main Application Entry Point
 Phase 3 & Phase 5: Backend Integration, Performance & Security Optimization,
 Smoke Testing & Runtime Verification, Clean Boot
 
+Phase 1 (Stability Hardening): serialization-safe global exception handlers are
+registered below (RequestValidationError / Pydantic ValidationError /
+SQLAlchemyError / global Exception) so malformed or hostile payloads can never
+escalate a 4xx / DB error into a 500 Internal Server Error.
+
 Phase 3 Verification Status: PASSED (see reports/phase3_smoke_testing_report.md)
 - AI Gateway mapped (/api/v1/ai)
 - MQTT bridge launches automatically (lifespan)
@@ -18,6 +23,10 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import structlog
+
+# Phase 1: required so the new global handlers can be registered by type.
+from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.core.dependencies import (
@@ -35,6 +44,11 @@ from app.core.exceptions import (
     ValidationError,
     AuthenticationError,
     AuthorizationError,
+    # Phase 1 — serialization-safe canonical handlers
+    request_validation_exception_handler,
+    pydantic_validation_exception_handler,
+    sqlalchemy_exception_handler,
+    general_exception_handler,
 )
 
 # Combined all distinct module routers cleanly
@@ -53,7 +67,7 @@ logger = structlog.get_logger("app.main")
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events with sequential check."""
     logger.info("io_application_starting", version=settings.APP_VERSION)
-    
+
     # Stage 1: Verify async database connection pool (Section 4 & Section 6)
     try:
         from apps.core.database.engine import verify_database_connection
@@ -77,24 +91,24 @@ async def lifespan(app: FastAPI):
     try:
         from app.services.mqtt_bridge import mqtt_bridge_instance
         from app.api.ws import start_distributor
-        
+
         await mqtt_bridge_instance.start()
         start_distributor()
         logger.info("io_mqtt_and_distributor_started")
     except Exception as e:
         logger.error("io_startup_services_failed", error=str(e))
-        
+
     logger.info("io_startup_complete")
-    
+
     yield
-    
+
     # Shutdown: Clean up connections, flush logs, etc.
     logger.info("io_application_shutting_down")
     try:
         from app.services.mqtt_bridge import mqtt_bridge_instance
         from app.api.ws import stop_distributor
         from shared.event_bus import redis_pool
-        
+
         await stop_distributor()
         await mqtt_bridge_instance.stop()
         await redis_pool.aclose()
@@ -105,7 +119,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    
+
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -154,6 +168,20 @@ def create_app() -> FastAPI:
                     "details": exc.detail.get("details"),
                 },
             )
+        # Phase 1: bodies that cannot be read/parsed (null bytes, truncated
+        # streams, binary injection) surface as a 400 "There was an error
+        # parsing the body". Remap to 422 so every malformed/hostile payload
+        # yields a consistent VALIDATION_ERROR contract instead of a bare 400.
+        if exc.status_code == 400 and isinstance(exc.detail, str) and "parsing the body" in exc.detail:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "success": False,
+                    "error": "VALIDATION_ERROR",
+                    "message": "The request payload could not be parsed.",
+                    "details": [exc.detail],
+                },
+            )
         if exc.status_code == 404:
             return JSONResponse(
                 status_code=404,
@@ -162,18 +190,6 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=exc.status_code,
             content={"success": False, "error": "HTTP_ERROR", "message": str(exc.detail)},
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(
-            status_code=422,
-            content={
-                "success": False,
-                "error": "VALIDATION_ERROR",
-                "message": "Invalid request parameters",
-                "details": exc.errors(),
-            },
         )
 
     @app.exception_handler(IOBException)
@@ -217,6 +233,19 @@ def create_app() -> FastAPI:
             status_code=403,
             content={"success": False, "error": "FORBIDDEN", "message": str(exc)},
         )
+
+    # ── Phase 1 — Critical Backend Bug Fixes & Stability Hardening ────────────
+    # Register the canonical, serialization-safe handlers. These guarantee that
+    # un-decoded bytes / non-JSON types inside validation errors or DB failures
+    # can never escalate a 4xx / DB error into a 500. The RequestValidationError
+    # handler below REPLACES the previous inline handler that passed
+    # exc.errors() straight to JSONResponse (which raised
+    # "TypeError: Object of type bytes is not JSON serializable").
+    app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+    app.add_exception_handler(PydanticValidationError, pydantic_validation_exception_handler)
+    app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+    # Global safety net — strict JSON contract for any unhandled exception.
+    app.add_exception_handler(Exception, general_exception_handler)
 
     # Health Check Endpoint at Root
     @app.get("/health", tags=["Health"])
