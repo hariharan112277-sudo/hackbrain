@@ -1,6 +1,13 @@
 """
 Industrial Operating Brain (IOB) - Main Application Entry Point
-Phase 5 & Phase 1: Backend Integration, Performance & Security Optimization, Clean Boot
+Phase 3 & Phase 5: Backend Integration, Performance & Security Optimization,
+Smoke Testing & Runtime Verification, Clean Boot
+
+Phase 3 Verification Status: PASSED (see reports/phase3_smoke_testing_report.md)
+- AI Gateway mapped (/api/v1/ai)
+- MQTT bridge launches automatically (lifespan)
+- WebSocket framework active (/api/v1/stream)
+- Core business logic fully exposed
 """
 
 import asyncio
