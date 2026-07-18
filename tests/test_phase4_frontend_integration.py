@@ -161,7 +161,7 @@ class TestAuthIntegration:
         app.dependency_overrides[get_db] = lambda: mock_db_session
         _override_user(role="viewer")
         resp = client.post(
-            "/api/v1/industrial/alerts/ALM-1/resolve",
+            "/api/v1/alerts/ALM-1/resolve",
             json={"resolution_notes": "viewer should be blocked"},
         )
         assert resp.status_code == 403

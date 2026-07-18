@@ -15,10 +15,15 @@ router = APIRouter()
 @router.get("")
 def get_alerts(
     status: str | None = Query(None, pattern="^(critical|warning|resolved)$"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return alarms, optionally filtered to open severity or resolved state."""
+    """Return alarms, optionally filtered to open severity or resolved state.
+
+    Supports basic pagination via ``limit`` / ``offset`` query parameters.
+    """
     query = db.query(Alarm)
 
     if status == "resolved":
@@ -26,7 +31,12 @@ def get_alerts(
     elif status is not None:
         query = query.filter(Alarm.severity == status, Alarm.resolved.is_(False))
 
-    alarms = query.order_by(desc(Alarm.ts), desc(Alarm.alarm_id)).all()
+    alarms = (
+        query.order_by(desc(Alarm.ts), desc(Alarm.alarm_id))
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return [
         {
             "alarm_id": alarm.alarm_id,

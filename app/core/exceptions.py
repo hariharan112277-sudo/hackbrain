@@ -60,7 +60,7 @@ class ResourceNotFoundError(IOBException):
             message=message,
             error_code="NOT_FOUND",
             status_code=404,
-            details={**details, "resource_type": resource_type, "resource_id": resource_id},
+            details={**(details or {}), "resource_type": resource_type, "resource_id": resource_id},
         )
         self.resource_type = resource_type
         self.resource_id = resource_id

@@ -104,6 +104,17 @@ def mock_db_assets():
             q.filter.return_value.first.return_value = mock_asset
             q.filter.return_value.all.return_value = [mock_asset]
         elif args and args[0] is Alarm:
+            # Support chains with and without .offset().limit() pagination
+            for base in (q, q.filter.return_value, q.filter.return_value.filter.return_value):
+                chain = base.order_by.return_value
+                chain.all.return_value = [mock_alarm]
+                chain.offset.return_value.limit.return_value.all.return_value = [mock_alarm]
+                base.all.return_value = [mock_alarm]
+                base.offset.return_value.limit.return_value.all.return_value = [mock_alarm]
+                base.first.return_value = mock_alarm
+                base.filter.return_value.first.return_value = mock_alarm
+                base.filter.return_value.order_by.return_value.all.return_value = [mock_alarm]
+                base.filter.return_value.order_by.return_value.offset.return_value.limit.return_value.all.return_value = [mock_alarm]
             q.order_by.return_value.all.return_value = [mock_alarm]
             q.filter.return_value.order_by.return_value.all.return_value = [mock_alarm]
             q.filter.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_alarm]

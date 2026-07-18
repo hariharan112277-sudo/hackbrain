@@ -40,6 +40,8 @@ def _latest_telemetry_subquery(db: Session):
 
 @router.get("")
 def get_assets(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     user: UserContext = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -48,20 +50,24 @@ def get_assets(
     Phase 4 contract alignment: responses use the frontend envelope
     ``{"items": [...], "total_count": n, "critical_count": n}`` expected by
     the asset registry UI component (see tests/test_assets.py).
+
+    Supports basic pagination via ``limit`` / ``offset`` query parameters.
+    ``total_count`` reflects the full unfiltered set; ``items`` contains
+    only the requested page slice.
     """
     latest_telemetry = _latest_telemetry_subquery(db)
 
-    results = (
+    base_query = (
         db.query(Asset, latest_telemetry.c.status)
         .outerjoin(
             latest_telemetry,
             (Asset.asset_id == latest_telemetry.c.asset_id) & (latest_telemetry.c.row_number == 1),
         )
-        .order_by(Asset.asset_id)
-        .all()
     )
 
-    items = [
+    all_results = base_query.order_by(Asset.asset_id).all()
+
+    all_items = [
         {
             "asset_id": asset.asset_id,
             "name": asset.name,
@@ -69,13 +75,15 @@ def get_assets(
             "criticality": asset.criticality,
             "status": telemetry_status or "unknown",
         }
-        for asset, telemetry_status in results
+        for asset, telemetry_status in all_results
     ]
+
+    items = all_items[offset : offset + limit]
 
     return {
         "items": items,
-        "total_count": len(items),
-        "critical_count": sum(1 for item in items if item["criticality"] == "critical"),
+        "total_count": len(all_items),
+        "critical_count": sum(1 for item in all_items if item["criticality"] == "critical"),
     }
 
 
