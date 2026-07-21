@@ -52,7 +52,6 @@ async def _distribute_telemetry():
     per-message broadcast behaviour for full backwards compatibility.
     """
     logger.info("Starting WebSocket telemetry distributor...")
-    pubsub = await subscribe_channel("pubsub:telemetry")
 
     batch_window_s = max(0, int(getattr(settings, "WS_BROADCAST_BATCH_MS", 0))) / 1000.0
     batch_max = max(1, int(getattr(settings, "WS_BROADCAST_BATCH_MAX", 50)))
@@ -70,7 +69,12 @@ async def _distribute_telemetry():
         batch = []
         batch_started_at = time.monotonic()
 
+    pubsub = None
     try:
+        # Redis is an optional transport for local development. A failed
+        # subscription must end this worker cleanly rather than leaving an
+        # unobserved task exception during application startup.
+        pubsub = await subscribe_channel("pubsub:telemetry")
         async for message in pubsub.listen():
             if message["type"] != "message":
                 continue
@@ -84,16 +88,25 @@ async def _distribute_telemetry():
                 elapsed = time.monotonic() - batch_started_at
                 if len(batch) >= batch_max or elapsed >= batch_window_s:
                     await _flush_batch()
-            except Exception as e:
-                logger.error(f"Distributor payload error: {e}")
+            except Exception:
+                logger.exception("websocket_distributor_payload_failed")
     except asyncio.CancelledError:
-        logger.info("WebSocket telemetry distributor task cancelled.")
+        logger.info("websocket_distributor_cancelled")
         try:
             await _flush_batch()
         except Exception:
-            pass
+            logger.exception("websocket_distributor_flush_failed")
+    except Exception as exc:
+        # Redis is optional for a local single-process boot; the worker can be
+        # restarted by the process supervisor when the broker becomes ready.
+        logger.warning("websocket_distributor_transport_unavailable", error=str(exc))
     finally:
-        await pubsub.unsubscribe("pubsub:telemetry")
+        if pubsub is not None:
+            try:
+                await pubsub.unsubscribe("pubsub:telemetry")
+                await pubsub.close()
+            except Exception:
+                logger.exception("websocket_distributor_cleanup_failed")
 
 def start_distributor():
     """Start the global telemetry distributor."""

@@ -1,9 +1,9 @@
 """Validated application configuration with explicit production boundaries."""
 from __future__ import annotations
 from functools import lru_cache
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from pydantic import Field, field_validator, model_validator, AliasChoices
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEVELOPMENT_SECRET = "development-only-secret-key-change-before-deploying"
 _DEVELOPMENT_DATABASE_URL = "sqlite:///./iob_development.db"
@@ -29,8 +29,12 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     PASSWORD_MIN_LENGTH: int = 12
     BCRYPT_ROUNDS: int = 12
-    CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "http://localhost:8080"])
-    ALLOWED_HOSTS: List[str] = Field(default_factory=lambda: ["*"])
+    # NoDecode lets the validator accept both documented comma-separated
+    # values and JSON arrays from environment sources.
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:8080"]
+    )
+    ALLOWED_HOSTS: Annotated[List[str], NoDecode] = Field(default_factory=lambda: ["*"])
     DATABASE_URL: Optional[str] = Field(_DEVELOPMENT_DATABASE_URL, validation_alias=AliasChoices("DATABASE_URL", "IOB_POSTGRES_DSN"))
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10

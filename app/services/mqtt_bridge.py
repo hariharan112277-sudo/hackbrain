@@ -133,14 +133,18 @@ class MQTTBridge:
         """Background loop trying to re-establish connection to the broker with exponential backoff (up to 60s max)."""
         wait_time = 2
         max_wait = 60
-        while not self._connected:
-            logger.info(f"Attempting to reconnect to MQTT Broker in {wait_time} seconds...")
-            await asyncio.sleep(wait_time)
+        while not self._connected and not self._stopping:
+            logger.info("mqtt_reconnect_wait", wait_seconds=wait_time)
             try:
+                await asyncio.sleep(wait_time)
+                if self._stopping:
+                    break
                 await self.client.connect(self.host, self.port, keepalive=self.keepalive)
-                break
-            except Exception as e:
-                logger.error("Reconnection attempt failed", error=str(e), next_retry_s=wait_time)
+            except asyncio.CancelledError:
+                logger.info("mqtt_reconnect_cancelled")
+                raise
+            except Exception as exc:
+                logger.error("mqtt_reconnect_failed", error=str(exc), next_retry_s=wait_time)
                 wait_time = min(wait_time * 2, max_wait)
 
     async def start(self) -> None:
@@ -159,10 +163,16 @@ class MQTTBridge:
         logger.info("mqtt_bridge_stopping", buffered_messages=sensor_queue.qsize())
         if self._reconnect_task and not self._reconnect_task.done():
             self._reconnect_task.cancel()
+            try:
+                await self._reconnect_task
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._reconnect_task = None
         try:
             await self.client.disconnect()
-        except Exception as e:
-            logger.error("Error during MQTT disconnect", error=str(e))
+        except Exception as exc:
+            logger.error("mqtt_disconnect_failed", error=str(exc))
 
 
 # Global instance

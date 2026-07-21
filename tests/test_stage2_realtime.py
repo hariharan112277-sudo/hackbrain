@@ -45,30 +45,36 @@ async def test_websocket_telemetry_success_and_streaming():
     
     mock_ws = AsyncMock(spec=WebSocket)
     mock_ws.client = "127.0.0.1"
-    
+
+    # AsyncMock's default return value completes immediately, which would make
+    # the endpoint's receive loop spin without yielding. Model a real client
+    # that remains connected until the server cancels it.
+    async def wait_for_client_message():
+        await asyncio.sleep(3600)
+
+    mock_ws.receive_text.side_effect = wait_for_client_message
     task = asyncio.create_task(websocket_telemetry_endpoint(mock_ws, token=token))
     await asyncio.sleep(0.05)
-    
+
     try:
         mock_ws.accept.assert_called_once()
         assert mock_ws in manager.active_connections
-        
+
         test_payload = {
             "topic": "industrial/telemetry/temp_sensor_01",
-            "payload": {"value": 24.5, "unit": "C"}
+            "payload": {"value": 24.5, "unit": "C"},
         }
-        await sensor_queue.put(test_payload)
-        await asyncio.sleep(0.15)
-        
+        # The production distributor consumes Redis Pub/Sub; the connection
+        # manager is the stable unit under test here.
+        await manager.broadcast(test_payload)
         mock_ws.send_json.assert_called_with(test_payload)
-        
     finally:
         task.cancel()
         try:
             await task
         except asyncio.CancelledError:
             pass
-            
+
         assert mock_ws not in manager.active_connections
 
 
